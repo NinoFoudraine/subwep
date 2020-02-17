@@ -7,6 +7,8 @@ library(profvis)
 library(MASS)
 library(data.table)
 
+#testest
+
 Observations = read.csv(file.choose(), header = T, sep = ';',stringsAsFactors = FALSE)
 # Observations_game = read.csv(file.choose(), header = T, sep = ';',stringsAsFactors = FALSE)
 # OfferDetails via cleaned code
