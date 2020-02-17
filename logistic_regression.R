@@ -29,7 +29,7 @@ intrain <- createDataPartition(Observations_partitioning, p = 0.8, list = F)
 training <- Observations[intrain,]
 testing  <- Observations[-intrain,]
 
-userlist <- userlist2[1]
+userlist <- userlist2[5]
 total_probs <- list()
 
 # # opdelen totale matrix in verschillende blocks van users voor snelheid
@@ -40,7 +40,7 @@ testing <- as.data.table(testing)
 
 # set parameters
 epsilon <- 10^-2
-lambda <- 4
+lambda <- 9000000
 
 for (j in 1:length(userlist)) {
   start_time <- Sys.time()
@@ -58,13 +58,13 @@ for (j in 1:length(userlist)) {
     print('no forecasts needed')
     next
   }
-  print(paste0('number of clicks in train_set: ',sum(train_set$CLICK)))
+  print(paste0('click-rate in train_set: ',mean(train_set$CLICK)))
   
   # create parameters
-  # ols <- lm(CLICK~., train_set)
-  # parm <- ols$coefficients
-  # parm[is.na(parm)] <- 0
-  parm <- rep(0, dim(train_set)[2])
+  ols <- lm(CLICK~., train_set)
+  parm <- ols$coefficients
+  parm[is.na(parm)] <- 0
+  # parm <- rep(0, dim(train_set)[2])
   print(userlist[j])
   
   # Parameter estimation with Iteratively Re-weighted Least Squares
@@ -82,9 +82,9 @@ for (j in 1:length(userlist)) {
 
 game_probs <- dplyr::bind_rows(total_probs)
 aggregate(game_probs$click_prob, by = list(game_probs$CLICK), FUN = mean)
-MSE <- mean((game_probs$CLICK - game_probs$click_prob)^2)
-MSE_zero <- mean(game_probs$CLICK^2)
-MSE_one <- mean(abs(game_probs$CLICK - 1)^2)
+MAE <- mean(abs(game_probs$CLICK - game_probs$click_prob))
+MAE_zero <- mean(abs(game_probs$CLICK))
+MAE_one <- mean(abs(game_probs$CLICK - 1))
 
 
 RidgeRegr4 <- function(parm,data,lambda,epsilon){
@@ -93,7 +93,6 @@ RidgeRegr4 <- function(parm,data,lambda,epsilon){
   beta_k1 <- parm
   gradient <- Inf
   x <- as.matrix(cbind(intercept = rep(1,n),data[,-1]))
-  View(x[is.na(x),])
   y <- as.matrix(data[,1])
   j = 0
   z <- rep(NA,n)
