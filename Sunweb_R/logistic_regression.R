@@ -7,7 +7,6 @@ library(profvis)
 library(MASS)
 library(data.table)
 
-
 Observations = read.csv(file.choose(), header = T, sep = ';',stringsAsFactors = FALSE)
 # Observations_game = read.csv(file.choose(), header = T, sep = ';',stringsAsFactors = FALSE)
 # OfferDetails via cleaned code
@@ -26,63 +25,65 @@ userlist2 <- click_rate_per_user$user[click_rate_per_user$x >= 0.2 & click_rate_
 Observations_partitioning <- as.factor(Observations$USERID)
 set.seed(1908)
 intrain <- createDataPartition(Observations_partitioning, p = 0.8, list = F) 
-training <- Observations[intrain,] #TRAIN
-testing  <- Observations[-intrain,] #TEST
+training <- Observations[intrain,]
+testing  <- Observations[-intrain,]
 
-n_folds <- 5
-MAE_folds <- rep(NA, n_folds)
+userlist <- userlist2[1]
+total_probs <- list()
 
-for (i in 1:n_folds) {
+# # opdelen totale matrix in verschillende blocks van users voor snelheid
+# training <- training[training$USERID %in% userlist,]
+
+training <- as.data.table(training)
+testing <- as.data.table(testing)
+
+# set parameters
+epsilon <- 10^-2
+lambda <- 4
+
+for (j in 1:length(userlist)) {
   start_time <- Sys.time()
-  set.seed <- i #set seed for same results
-  in_kfold_train <- createDataPartition(training$USERID, p = 0.8, list = F)
-  train_kfold <- Observations[in_kfold_train,]
-  validation_kfold <- Observations[-in_kfold_train,]
+  # training set
+  train_set_complete <- training[USERID == userlist[j]]
+  data_train_complete <- merge(train_set_complete, OfferDetails, by = c("OFFERID", "MAILID"))
+  train_set <- data_train_complete[,-c(1:3)]#subset(data_train_complete,select = c(CLICK, PRICE, JANUARY:DECEMBER, DISCOUNT_RATE, REVIEW_RATING, STAR_RATING, DURATION, BULGARIA:ISRAEL)) # train_set <- subset(data_complete, select = -c(OFFERID, MAILID, USERID, ROOM_OCCUPANCY, ACCOMMODATION_NAME, USP1, USP2, USP3, DEPARTURE_DATE, ROOMTYPE, MONTH_SUM))
   
-  userlist2 <- unique(train_kfold$USERID)
-  userlist <- userlist2[c(1:3)]
-
-  for (j in 1:length(userlist)){
-    #start_time <- Sys.time()
-    # training set
-    train_set_complete <- train_kfold[USERID == userlist[j]]
-    data_train_complete <- merge(train_set_complete, OfferDetails, by = c("OFFERID", "MAILID"))
-    train_set <- data_train_complete[,-c(1:3)]#subset(data_train_complete,select = c(CLICK, PRICE, JANUARY:DECEMBER, DISCOUNT_RATE, REVIEW_RATING, STAR_RATING, DURATION, BULGARIA:ISRAEL)) # train_set <- subset(data_complete, select = -c(OFFERID, MAILID, USERID, ROOM_OCCUPANCY, ACCOMMODATION_NAME, USP1, USP2, USP3, DEPARTURE_DATE, ROOMTYPE, MONTH_SUM))
-    
-    # test set
-    test_set_complete <- validation_kfold[USERID == userlist[j]]
-    data_test_complete <- merge(test_set_complete, OfferDetails, by = c("OFFERID", "MAILID"))
-    test_set <- data_test_complete[,-c(1:3)]#subset(data_test_complete,select = c(CLICK, PRICE, JANUARY:DECEMBER, DISCOUNT_RATE, REVIEW_RATING, STAR_RATING, DURATION, BULGARIA:ISRAEL)) #test_set <- subset(data_test_complete, select = -c(OFFERID, MAILID, USERID, ROOM_OCCUPANCY, ACCOMMODATION_NAME, USP1, USP2, USP3, DEPARTURE_DATE, ROOMTYPE, MONTH_SUM))
-    
-    if (nrow(test_set) == 0) {
-      #print('no forecasts needed')
-      next
-    }
-    #print(paste0('click-rate in train_set: ',mean(train_set$CLICK)))
-    
-    # create parameters
-    ols <- lm(CLICK~., train_set)
-    parm <- ols$coefficients
-    parm[is.na(parm)] <- 0
-    # parm <- rep(0, dim(train_set)[2])
-    #print(userlist[j])
-    
-    # Parameter estimation with Iteratively Re-weighted Least Squares
-    opt_parm <- RidgeRegr4(parm,train_set, lambda, epsilon)
-    
-    # Fit test observations
-    prob <- FitRidge(opt_parm,test_set)
-    x <- test_set_complete
-    x$click_prob <- prob
-    total_probs[[j]] <- x
+  # test set
+  test_set_complete <- testing[USERID == userlist[j]]
+  data_test_complete <- merge(test_set_complete, OfferDetails, by = c("OFFERID", "MAILID"))
+  test_set <- data_test_complete[,-c(1:3)]#subset(data_test_complete,select = c(CLICK, PRICE, JANUARY:DECEMBER, DISCOUNT_RATE, REVIEW_RATING, STAR_RATING, DURATION, BULGARIA:ISRAEL)) #test_set <- subset(data_test_complete, select = -c(OFFERID, MAILID, USERID, ROOM_OCCUPANCY, ACCOMMODATION_NAME, USP1, USP2, USP3, DEPARTURE_DATE, ROOMTYPE, MONTH_SUM))
+  
+  if (nrow(test_set) == 0) {
+    print('no forecasts needed')
+    next
   }
-  game_probs <- dplyr::bind_rows(total_probs)
-  MAE[i] <- mean(abs(game_probs$CLICK - game_probs$click_prob))
+  print(paste0('number of clicks in train_set: ',sum(train_set$CLICK)))
+  
+  # create parameters
+  # ols <- lm(CLICK~., train_set)
+  # parm <- ols$coefficients
+  # parm[is.na(parm)] <- 0
+  parm <- rep(0, dim(train_set)[2])
+  print(userlist[j])
+  
+  # Parameter estimation with Iteratively Re-weighted Least Squares
+  opt_parm <- RidgeRegr4(parm,train_set, lambda, epsilon)
+  
+  # Fit test observations
+  prob <- FitRidge(opt_parm,test_set)
+  x <- test_set_complete
+  x$click_prob <- prob
+  total_probs[[j]] <- x
+  
   end_time <- Sys.time()
   print(end_time - start_time)
-  }
+}
 
-mean(MAE)
+game_probs <- dplyr::bind_rows(total_probs)
+aggregate(game_probs$click_prob, by = list(game_probs$CLICK), FUN = mean)
+MSE <- mean((game_probs$CLICK - game_probs$click_prob)^2)
+MSE_zero <- mean(game_probs$CLICK^2)
+MSE_one <- mean(abs(game_probs$CLICK - 1)^2)
 
 
 RidgeRegr4 <- function(parm,data,lambda,epsilon){
@@ -91,6 +92,7 @@ RidgeRegr4 <- function(parm,data,lambda,epsilon){
   beta_k1 <- parm
   gradient <- Inf
   x <- as.matrix(cbind(intercept = rep(1,n),data[,-1]))
+  View(x[is.na(x),])
   y <- as.matrix(data[,1])
   j = 0
   z <- rep(NA,n)
@@ -110,7 +112,7 @@ RidgeRegr4 <- function(parm,data,lambda,epsilon){
     beta_k1 <- beta_k + ginv(Hessian) %*% gradient
     #print(norm(beta_k1[-1], "2"))
     #print(sum(gradient)^2)
-    #print(beta_k1[1])
+    print(beta_k1[1])
     j = j+1
   }
   print(j)
