@@ -29,16 +29,21 @@ intrain <- createDataPartition(Observations_partitioning, p = 0.8, list = F)
 training <- Observations[intrain,] #TRAIN
 testing  <- Observations[-intrain,] #TEST
 
-lambda <- 5
+lambda_vector <- c(0, exp(5), exp(10), exp(15))
 epsilon <- 10^-2
 
 n_folds <- 5
 MAE_folds <- rep(NA, n_folds)
+MAE_zero_folds <- rep(NA, n_folds)
+MAE_clickrate_folds <- rep(NA, n_folds)
 total_probs <- list()
+MAE_lambda <- rep(NA, length(lambda_vector))
 
 
-
-for (i in 1:n_folds) {
+for (l in 1:length(lambda_vector)) {
+lambda <- lambda_vector[l]
+  
+  for (i in 1:n_folds) {
   start_time <- Sys.time()
   set.seed <- i #set seed for same results
   in_kfold_train <- createDataPartition(training$USERID, p = 0.8, list = F)
@@ -46,9 +51,10 @@ for (i in 1:n_folds) {
   validation_kfold <- as.data.table(Observations[-in_kfold_train,])
   
   userlist2 <- unique(train_kfold$USERID)
-  userlist <- userlist2[c(1:3)]
+  userlist <- userlist2[c(1:1000)]
 
-  for (j in 1:length(userlist)){
+    for (j in 1:length(userlist)){
+      print(userlist[j])
     #start_time <- Sys.time()
     # training set
     train_set_complete <- train_kfold[USERID == userlist[j]]
@@ -81,14 +87,21 @@ for (i in 1:n_folds) {
     x <- test_set_complete
     x$click_prob <- prob
     total_probs[[j]] <- x
-  }
+    }
   game_probs <- dplyr::bind_rows(total_probs)
   MAE_folds[i] <- mean(abs(game_probs$CLICK - game_probs$click_prob))
+  
+  MAE_zero_folds[i] <- mean(game_probs$CLICK)
+  click_rate <- mean(train_set$CLICK)
+  MAE_clickrate_folds[i] <- mean(abs(game_probs$CLICK - click_rate))
+  
   end_time <- Sys.time()
   print(end_time - start_time)
+  }
+MAE_lambda[l] <- mean(MAE_folds)
 }
-
-mean(MAE_folds)
+MAE_zero <- mean(MAE_zero_folds)
+MAE_clickrate <- mean(MAE_clickrate_folds)
 
 
 RidgeRegr4 <- function(parm,data,lambda,epsilon){
