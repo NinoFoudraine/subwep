@@ -19,8 +19,8 @@ userlist2 <- clicks_per_user$user[clicks_per_user$x > 0]
 Observations <- Observations[Observations$USERID %in% userlist2,]
 
 ### test case
-click_rate_per_user <- aggregate(Observations$CLICK, by = list(user = Observations$USERID), FUN = mean)
-userlist2 <- click_rate_per_user$user[click_rate_per_user$x >= 0.2 & click_rate_per_user$x < 0.45]
+#click_rate_per_user <- aggregate(Observations$CLICK, by = list(user = Observations$USERID), FUN = mean)
+#userlist2 <- click_rate_per_user$user[click_rate_per_user$x >= 0.2 & click_rate_per_user$x < 0.45]
 
 #DATA PARTITIONING
 Observations_partitioning <- as.factor(Observations$USERID)
@@ -29,15 +29,21 @@ intrain <- createDataPartition(Observations_partitioning, p = 0.8, list = F)
 training <- Observations[intrain,] #TRAIN
 testing  <- Observations[-intrain,] #TEST
 
+lambda <- 5
+epsilon <- 10^-2
+
 n_folds <- 5
 MAE_folds <- rep(NA, n_folds)
+total_probs <- list()
+
+
 
 for (i in 1:n_folds) {
   start_time <- Sys.time()
   set.seed <- i #set seed for same results
   in_kfold_train <- createDataPartition(training$USERID, p = 0.8, list = F)
-  train_kfold <- Observations[in_kfold_train,]
-  validation_kfold <- Observations[-in_kfold_train,]
+  train_kfold <- as.data.table(Observations[in_kfold_train,])
+  validation_kfold <- as.data.table(Observations[-in_kfold_train,])
   
   userlist2 <- unique(train_kfold$USERID)
   userlist <- userlist2[c(1:3)]
@@ -77,12 +83,12 @@ for (i in 1:n_folds) {
     total_probs[[j]] <- x
   }
   game_probs <- dplyr::bind_rows(total_probs)
-  MAE[i] <- mean(abs(game_probs$CLICK - game_probs$click_prob))
+  MAE_folds[i] <- mean(abs(game_probs$CLICK - game_probs$click_prob))
   end_time <- Sys.time()
   print(end_time - start_time)
-  }
+}
 
-mean(MAE)
+mean(MAE_folds)
 
 
 RidgeRegr4 <- function(parm,data,lambda,epsilon){
