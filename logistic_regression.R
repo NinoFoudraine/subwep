@@ -8,103 +8,107 @@ library(MASS)
 library(data.table)
 
 
+# STAP 0: data inladen
 Observations = read.csv(file.choose(), header = T, sep = ';',stringsAsFactors = FALSE)
-# Observations_game = read.csv(file.choose(), header = T, sep = ';',stringsAsFactors = FALSE)
-# OfferDetails via cleaned code
 
-# remove never clicked users
+# STAP 1: delete zero clickers
 clicks_per_user <- aggregate(Observations$CLICK, by = list(user = Observations$USERID), FUN = sum)
-##offers_per_user <- aggregate(Observations$CLICK, by = list(user = Observations$USERID), FUN = length)
 userlist2 <- clicks_per_user$user[clicks_per_user$x > 0]
-Observations <- Observations[Observations$USERID %in% userlist2,]
 
-### test case
-#click_rate_per_user <- aggregate(Observations$CLICK, by = list(user = Observations$USERID), FUN = mean)
-#userlist2 <- click_rate_per_user$user[click_rate_per_user$x >= 0.2 & click_rate_per_user$x < 0.45]
+# STAP 2: split data in 4 stukken (data opnieuw inloaden bij nieuwe part)
+userlist_part_1 <- userlist2[1:round(length(userlist2)/20)]
+# part2 <- userlist
+# etc
+Observations <- Observations[Observations$USERID %in% userlist_part_1,]
 
-#DATA PARTITIONING
-Observations_partitioning <- as.factor(Observations$USERID)
+# STAP 3: DATA PARTITIONING IN TRAIN-TEST (before kfold train-validation)
 set.seed(1908)
-intrain <- createDataPartition(Observations_partitioning, p = 0.8, list = F) 
+intrain <- createDataPartition(Observations$USERID, p = 0.8, list = F) 
 training <- Observations[intrain,] #TRAIN
 testing  <- Observations[-intrain,] #TEST
 
+# STAP 4: Zet parameters
+n_folds <- 5
 lambda_vector <- c(0, exp(5), exp(10), exp(15))
 epsilon <- 10^-2
 
-n_folds <- 5
-MAE_folds <- rep(NA, n_folds)
-MAE_zero_folds <- rep(NA, n_folds)
-MAE_clickrate_folds <- rep(NA, n_folds)
-total_probs <- list()
-MAE_lambda <- rep(NA, length(lambda_vector))
+# STAP 5: Maak Folds
+set.seed(1941)
+folds <- createFolds(training$USERID, k = n_folds, list = TRUE, returnTrain = FALSE)
 
+# STAP 6: Run Algoritme
 
-for (l in 1:length(lambda_vector)) {
-lambda <- lambda_vector[l]
+itReLS(lambda_vector = lambda_vector, folds = folds, epsilon = epsilon, training = training, userlist = userlist_part_1)
+
+itReLS <- function(lambda_vector, folds, epsilon, training, userlist){
+  MAE_folds <- rep(NA, length(folds))
+  MAE_lambda <- rep(NA, length(lambda_vector))
+  MAE_zero_folds <- rep(NA, length(folds))
+  MAE_clickrate_folds <- rep(NA, length(folds))
   
-  for (i in 1:n_folds) {
-  start_time <- Sys.time()
-  set.seed <- i #set seed for same results
-  in_kfold_train <- createDataPartition(training$USERID, p = 0.8, list = F)
-  train_kfold <- as.data.table(Observations[in_kfold_train,])
-  validation_kfold <- as.data.table(Observations[-in_kfold_train,])
-  
-  userlist2 <- unique(train_kfold$USERID)
-  userlist <- userlist2[c(1:1000)]
-
-    for (j in 1:length(userlist)){
-      print(userlist[j])
-    #start_time <- Sys.time()
-    # training set
-    train_set_complete <- train_kfold[USERID == userlist[j]]
-    data_train_complete <- merge(train_set_complete, OfferDetails, by = c("OFFERID", "MAILID"))
-    train_set <- data_train_complete[,-c(1:3)]#subset(data_train_complete,select = c(CLICK, PRICE, JANUARY:DECEMBER, DISCOUNT_RATE, REVIEW_RATING, STAR_RATING, DURATION, BULGARIA:ISRAEL)) # train_set <- subset(data_complete, select = -c(OFFERID, MAILID, USERID, ROOM_OCCUPANCY, ACCOMMODATION_NAME, USP1, USP2, USP3, DEPARTURE_DATE, ROOMTYPE, MONTH_SUM))
+  for (l in 1:length(lambda_vector)) {
+    lambda <- lambda_vector[l]
     
-    # test set
-    test_set_complete <- validation_kfold[USERID == userlist[j]]
-    data_test_complete <- merge(test_set_complete, OfferDetails, by = c("OFFERID", "MAILID"))
-    test_set <- data_test_complete[,-c(1:3)]#subset(data_test_complete,select = c(CLICK, PRICE, JANUARY:DECEMBER, DISCOUNT_RATE, REVIEW_RATING, STAR_RATING, DURATION, BULGARIA:ISRAEL)) #test_set <- subset(data_test_complete, select = -c(OFFERID, MAILID, USERID, ROOM_OCCUPANCY, ACCOMMODATION_NAME, USP1, USP2, USP3, DEPARTURE_DATE, ROOMTYPE, MONTH_SUM))
-    
-    if (nrow(test_set) == 0) {
-      #print('no forecasts needed')
-      next
+    for (i in 1:length(folds)) {
+      start_time <- Sys.time()
+      train_kfold <- as.data.table(training[-folds[[i]],])
+      validation_kfold <- as.data.table(training[folds[[i]],])
+      total_probs <- list()
+      
+      for (j in 1:length(userlist)){
+        print(userlist[j])
+        print(j)
+        # training set
+        train_set <- train_kfold[USERID == userlist[j]]
+        train_set <- merge(train_set, OfferDetails, by = c("OFFERID", "MAILID"))
+        train_set <- train_set[,-c("OFFERID", "MAILID", "USERID")] #subset(train_set,select = c(CLICK, PRICE, JANUARY:DECEMBER, DISCOUNT_RATE, REVIEW_RATING, STAR_RATING, DURATION, BULGARIA:ISRAEL)) # train_set <- subset(data_complete, select = -c(OFFERID, MAILID, USERID, ROOM_OCCUPANCY, ACCOMMODATION_NAME, USP1, USP2, USP3, DEPARTURE_DATE, ROOMTYPE, MONTH_SUM))
+        
+        # test set
+        test_set_complete <- validation_kfold[USERID == userlist[j]]
+        test_set <- merge(test_set_complete, OfferDetails, by = c("OFFERID", "MAILID"))
+        test_set <- test_set[,-c("OFFERID", "MAILID", "USERID")]#subset(data_test_complete,select = c(CLICK, PRICE, JANUARY:DECEMBER, DISCOUNT_RATE, REVIEW_RATING, STAR_RATING, DURATION, BULGARIA:ISRAEL)) #test_set <- subset(data_test_complete, select = -c(OFFERID, MAILID, USERID, ROOM_OCCUPANCY, ACCOMMODATION_NAME, USP1, USP2, USP3, DEPARTURE_DATE, ROOMTYPE, MONTH_SUM))
+        
+        if (nrow(test_set) == 0) {
+          print('no forecasts needed')
+          next
+        }
+        #print(paste0('click-rate in train_set: ',mean(train_set$CLICK)))
+        
+        # create parameters
+        ols <- lm(CLICK~., train_set)
+        parm <- ols$coefficients
+        parm[is.na(parm)] <- 0
+        # parm <- rep(0, dim(train_set)[2])
+        
+        # Parameter estimation with Iteratively Re-weighted Least Squares
+        opt_parm <- RidgeRegr(parm, train_set, lambda, epsilon)
+        
+        # Fit test observations
+        prob <- FitRidge(opt_parm, test_set)
+        x <- test_set_complete
+        x$click_prob <- prob
+        total_probs[[j]] <- x
+      }
+      game_probs <- dplyr::bind_rows(total_probs)
+      MAE_folds[i] <- mean(abs(game_probs$CLICK - game_probs$click_prob))
+      
+      MAE_zero_folds[i] <- mean(game_probs$CLICK)
+      click_rate <- mean(train_set$CLICK)
+      MAE_clickrate_folds[i] <- mean(abs(game_probs$CLICK - click_rate))
+      
+      end_time <- Sys.time()
+      print(end_time - start_time)
     }
-    #print(paste0('click-rate in train_set: ',mean(train_set$CLICK)))
-    
-    # create parameters
-    ols <- lm(CLICK~., train_set)
-    parm <- ols$coefficients
-    parm[is.na(parm)] <- 0
-    # parm <- rep(0, dim(train_set)[2])
-    #print(userlist[j])
-    
-    # Parameter estimation with Iteratively Re-weighted Least Squares
-    opt_parm <- RidgeRegr4(parm,train_set, lambda, epsilon)
-    
-    # Fit test observations
-    prob <- FitRidge(opt_parm,test_set)
-    x <- test_set_complete
-    x$click_prob <- prob
-    total_probs[[j]] <- x
-    }
-  game_probs <- dplyr::bind_rows(total_probs)
-  MAE_folds[i] <- mean(abs(game_probs$CLICK - game_probs$click_prob))
-  
-  MAE_zero_folds[i] <- mean(game_probs$CLICK)
-  click_rate <- mean(train_set$CLICK)
-  MAE_clickrate_folds[i] <- mean(abs(game_probs$CLICK - click_rate))
-  
-  end_time <- Sys.time()
-  print(end_time - start_time)
+    MAE_lambda[l] <- mean(MAE_folds)
   }
-MAE_lambda[l] <- mean(MAE_folds)
+  MAE_zero <- mean(MAE_zero_folds)
+  MAE_clickrate <- mean(MAE_clickrate_folds)  
+
+  return(rbind(MAE_lambda, MAE_zero, MAE_clickrate))  
 }
-MAE_zero <- mean(MAE_zero_folds)
-MAE_clickrate <- mean(MAE_clickrate_folds)
 
 
-RidgeRegr4 <- function(parm,data,lambda,epsilon){
+RidgeRegr <- function(parm, data, lambda, epsilon){
   n <- dim(data)[1]
   beta_k <- rep(Inf, length(parm))
   beta_k1 <- parm
@@ -145,16 +149,5 @@ FitRidge <- function(parm,data){
     prob[i] <- z/(1+z)
   }
   return(prob)
-}
-
-# Ridge function
-Ridge <- function(parm,data, lambda){
-  f <- 0
-  for (i in 1:dim(data)[1]){
-    z <- parm[1]+(sum(parm[-1]*data[i,-1]))
-    f <- f + data[i,1]*z - log(1 + exp(z))
-  }
-  rho <- -f
-  return(rho + 1/2 * lambda * sum(parm^2))
 }
 
