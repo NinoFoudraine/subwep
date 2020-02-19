@@ -40,7 +40,8 @@ itReLS <- function(lambda_vector, folds, epsilon, training, userlist){
         test_set <- test_set[,-c("OFFERID", "MAILID", "USERID")]#subset(data_test_complete,select = c(CLICK, PRICE, JANUARY:DECEMBER, DISCOUNT_RATE, REVIEW_RATING, STAR_RATING, DURATION, BULGARIA:ISRAEL)) #test_set <- subset(data_test_complete, select = -c(OFFERID, MAILID, USERID, ROOM_OCCUPANCY, ACCOMMODATION_NAME, USP1, USP2, USP3, DEPARTURE_DATE, ROOMTYPE, MONTH_SUM))
         
         if (nrow(test_set) == 0) {
-          print('no forecasts needed')
+          # print('no forecasts needed')
+          # print(j)
           next
         }
         
@@ -50,23 +51,24 @@ itReLS <- function(lambda_vector, folds, epsilon, training, userlist){
         parm[is.na(parm)] <- 0
         # Parameter estimation with Iteratively Re-weighted Least Squares
         opt_parm <- RidgeRegr(parm, train_set, lambda, epsilon)
+        
+        #print(opt_parm)
 
         # Fit test observations
         prob <- FitRidge(opt_parm, test_set)
         x <- test_set_complete
         x$click_prob <- prob
+        x$AE_clickrate <- abs(x$CLICK - mean(train_set$CLICK))
         total_probs[[j]] <- x
         
-        AE_clickrate_user[[j]] <- abs(x$CLICK - mean(train_set$CLICK))
       }
       game_probs <- dplyr::bind_rows(total_probs)
-      AE_clickrate <- dplyr::bind_rows(AE_clickrate_user)
       
       MAE_folds[i] <- mean(abs(game_probs$CLICK - game_probs$click_prob))
       
       MAE_zero_folds[i] <- mean(game_probs$CLICK)
       click_rate <- mean(train_set$CLICK)
-      MAE_clickrate_folds[i] <- mean(AE_clickrate)
+      MAE_clickrate_folds[i] <- mean(x$AE_clickrate)
       
       end_time <- Sys.time()
       print(end_time - start_time)
@@ -89,7 +91,7 @@ RidgeRegr <- function(parm, data, lambda, epsilon){
   y <- as.matrix(data[,1])
   j = 0
   z <- rep(0,n)
-  while (sum(gradient)^2 > epsilon & j < 20) {
+  while (sum(gradient)^2 > epsilon & j < 40) {
     beta_k = beta_k1
     for (i in 1:n) {
       b <- exp(sum(x[i,]*beta_k))
@@ -130,17 +132,13 @@ Observations = read.csv(file.choose(), header = T, sep = ';',stringsAsFactors = 
 # STAP 1: Delete zero clickers en users met minder dan 8 observaties (geen kfold mogelijk)
 clicks_per_user <- aggregate(Observations$CLICK, by = list(user = Observations$USERID), FUN = sum)
 obs_per_user <- aggregate(Observations$USERID, by = list(user = Observations$USERID), FUN = length)
-
 clickrate_per_user <- aggregate(Observations$CLICK, by = list(user = Observations$USERID), FUN = mean)
-
 
 userlist2 <- clicks_per_user$user[clicks_per_user$x > 0 & obs_per_user$x >= 8 & clickrate_per_user$x >= 0.5 & clickrate_per_user$x< 1]
 
-
-
 # STAP 2: Split data in 4 stukken (data opnieuw inloaden bij nieuwe part)
 userlist_part_1 <- userlist2[1:round(1/2*length(userlist2))]
-#userlist_part_1 <- 44416771
+#userlist_part_1 <- 44811506
   # part2 <- userlist
 # etc
 Observations1 <- Observations[Observations$USERID %in% userlist_part_1,]
@@ -153,9 +151,9 @@ testing  <- Observations1[-intrain,] # test
 
 
 # STAP 4: Zet parameters
-n_folds <- 3
-lambda_vector <- c(exp(10),exp(12))#c(0.1, exp(1),  exp(4),  exp(7), exp(10), exp(12), exp(15))
-epsilon <- 10^-2
+n_folds <- 4
+lambda_vector <- c(0.1, exp(1),  exp(4),  exp(7), exp(10), exp(12), exp(15))
+epsilon <- 10^-4
 
 # STAP 5: Maak Folds
 set.seed(1941)
