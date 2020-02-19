@@ -7,38 +7,7 @@ library(profvis)
 library(MASS)
 library(data.table)
 
-
-# STAP 0: data inladen
-Observations = read.csv(file.choose(), header = T, sep = ';',stringsAsFactors = FALSE)
-
-# STAP 1: delete zero clickers
-clicks_per_user <- aggregate(Observations$CLICK, by = list(user = Observations$USERID), FUN = sum)
-userlist2 <- clicks_per_user$user[clicks_per_user$x > 0]
-
-# STAP 2: split data in 4 stukken (data opnieuw inloaden bij nieuwe part)
-userlist_part_1 <- userlist2[1:round(length(userlist2)/20)]
-# part2 <- userlist
-# etc
-Observations <- Observations[Observations$USERID %in% userlist_part_1,]
-
-# STAP 3: DATA PARTITIONING IN TRAIN-TEST (before kfold train-validation)
-set.seed(1908)
-intrain <- createDataPartition(Observations$USERID, p = 0.8, list = F) 
-training <- Observations[intrain,] #TRAIN
-testing  <- Observations[-intrain,] #TEST
-
-# STAP 4: Zet parameters
-n_folds <- 5
-lambda_vector <- c(0, exp(5), exp(10), exp(15))
-epsilon <- 10^-2
-
-# STAP 5: Maak Folds
-set.seed(1941)
-folds <- createFolds(training$USERID, k = n_folds, list = TRUE, returnTrain = FALSE)
-
-# STAP 6: Run Algoritme
-
-itReLS(lambda_vector = lambda_vector, folds = folds, epsilon = epsilon, training = training, userlist = userlist_part_1)
+# Laad Functies in
 
 itReLS <- function(lambda_vector, folds, epsilon, training, userlist){
   MAE_folds <- rep(NA, length(folds))
@@ -47,17 +16,19 @@ itReLS <- function(lambda_vector, folds, epsilon, training, userlist){
   MAE_clickrate_folds <- rep(NA, length(folds))
   
   for (l in 1:length(lambda_vector)) {
+    print(paste0('Lambda ', l))
     lambda <- lambda_vector[l]
     
     for (i in 1:length(folds)) {
+      print(paste0('Fold ', i))
       start_time <- Sys.time()
+      
       train_kfold <- as.data.table(training[-folds[[i]],])
       validation_kfold <- as.data.table(training[folds[[i]],])
       total_probs <- list()
+      AE_clickrate_user <- list()
       
       for (j in 1:length(userlist)){
-        print(userlist[j])
-        print(j)
         # training set
         train_set <- train_kfold[USERID == userlist[j]]
         train_set <- merge(train_set, OfferDetails, by = c("OFFERID", "MAILID"))
@@ -72,29 +43,30 @@ itReLS <- function(lambda_vector, folds, epsilon, training, userlist){
           print('no forecasts needed')
           next
         }
-        #print(paste0('click-rate in train_set: ',mean(train_set$CLICK)))
         
         # create parameters
         ols <- lm(CLICK~., train_set)
         parm <- ols$coefficients
         parm[is.na(parm)] <- 0
-        # parm <- rep(0, dim(train_set)[2])
-        
         # Parameter estimation with Iteratively Re-weighted Least Squares
         opt_parm <- RidgeRegr(parm, train_set, lambda, epsilon)
-        
+
         # Fit test observations
         prob <- FitRidge(opt_parm, test_set)
         x <- test_set_complete
         x$click_prob <- prob
         total_probs[[j]] <- x
+        
+        AE_clickrate_user[[j]] <- abs(x$CLICK - mean(train_set$CLICK))
       }
       game_probs <- dplyr::bind_rows(total_probs)
+      AE_clickrate <- dplyr::bind_rows(AE_clickrate_user)
+      
       MAE_folds[i] <- mean(abs(game_probs$CLICK - game_probs$click_prob))
       
       MAE_zero_folds[i] <- mean(game_probs$CLICK)
       click_rate <- mean(train_set$CLICK)
-      MAE_clickrate_folds[i] <- mean(abs(game_probs$CLICK - click_rate))
+      MAE_clickrate_folds[i] <- mean(AE_clickrate)
       
       end_time <- Sys.time()
       print(end_time - start_time)
@@ -102,9 +74,9 @@ itReLS <- function(lambda_vector, folds, epsilon, training, userlist){
     MAE_lambda[l] <- mean(MAE_folds)
   }
   MAE_zero <- mean(MAE_zero_folds)
-  MAE_clickrate <- mean(MAE_clickrate_folds)  
-
-  return(rbind(MAE_lambda, MAE_zero, MAE_clickrate))  
+  MAE_clickrate <- mean(MAE_clickrate_folds) 
+  
+  return(list(MAE_table = rbind(MAE_lambda, MAE_zero, MAE_clickrate), probs = game_probs))  
 }
 
 
@@ -116,11 +88,15 @@ RidgeRegr <- function(parm, data, lambda, epsilon){
   x <- as.matrix(cbind(intercept = rep(1,n),data[,-1]))
   y <- as.matrix(data[,1])
   j = 0
-  z <- rep(NA,n)
+  z <- rep(0,n)
   while (sum(gradient)^2 > epsilon & j < 20) {
     beta_k = beta_k1
     for (i in 1:n) {
       b <- exp(sum(x[i,]*beta_k))
+      if (b == Inf){
+        z[i] <- 1 
+        next
+      }
       z[i] <- b/(1 + b)
     }
     W <- z*(1-z)
@@ -131,13 +107,10 @@ RidgeRegr <- function(parm, data, lambda, epsilon){
     r[1] <- 0
     gradient <- t(x) %*% (y - z) - r
     beta_k1 <- beta_k + ginv(Hessian) %*% gradient
-    #print(norm(beta_k1[-1], "2"))
-    #print(sum(gradient)^2)
-    #print(beta_k1[1])
     j = j+1
   }
-  print(j)
-  return(beta_k1)
+  #print(j)
+  return(round(beta_k1,5))
 }
 
 # Fit Ridge function 
@@ -151,3 +124,46 @@ FitRidge <- function(parm,data){
   return(prob)
 }
 
+# STAP 0: Data inladen
+Observations = read.csv(file.choose(), header = T, sep = ';',stringsAsFactors = FALSE)
+
+# STAP 1: Delete zero clickers en users met minder dan 8 observaties (geen kfold mogelijk)
+clicks_per_user <- aggregate(Observations$CLICK, by = list(user = Observations$USERID), FUN = sum)
+obs_per_user <- aggregate(Observations$USERID, by = list(user = Observations$USERID), FUN = length)
+
+clickrate_per_user <- aggregate(Observations$CLICK, by = list(user = Observations$USERID), FUN = mean)
+
+
+userlist2 <- clicks_per_user$user[clicks_per_user$x > 0 & obs_per_user$x >= 8 & clickrate_per_user$x >= 0.5 & clickrate_per_user$x< 1]
+
+
+
+# STAP 2: Split data in 4 stukken (data opnieuw inloaden bij nieuwe part)
+userlist_part_1 <- userlist2[1:round(1/2*length(userlist2))]
+#userlist_part_1 <- 44416771
+  # part2 <- userlist
+# etc
+Observations1 <- Observations[Observations$USERID %in% userlist_part_1,]
+
+# STAP 3: Data split in train-test set (voor kfold train-validation)
+set.seed(1908)
+intrain <- createDataPartition(Observations1$USERID, p = 0.8, list = F) 
+training <- Observations1[intrain,] # train
+testing  <- Observations1[-intrain,] # test
+
+
+# STAP 4: Zet parameters
+n_folds <- 3
+lambda_vector <- c(exp(10),exp(12))#c(0.1, exp(1),  exp(4),  exp(7), exp(10), exp(12), exp(15))
+epsilon <- 10^-2
+
+# STAP 5: Maak Folds
+set.seed(1941)
+folds <- createFolds(training$USERID, k = n_folds, list = TRUE, returnTrain = FALSE)
+
+# STAP 6: Run Algoritme
+
+results <- itReLS(lambda_vector = lambda_vector, folds = folds, epsilon = epsilon, training = training, userlist = userlist_part_1)
+results$MAE_table
+View(results$probs)
+aggregate(results$probs$click_prob, by = list(results$probs$CLICK), FUN = mean)

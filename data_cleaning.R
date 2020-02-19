@@ -223,3 +223,17 @@ OfferDetails = OfferDetails[order(OfferDetails$OFFERID, OfferDetails$MAILID),]
 
 # keep only numeric values
 OfferDetails <- dplyr::select_if(OfferDetails, is.numeric)
+
+#Standardize price/ discount price
+OfferDetails$PRICE <- scale(OfferDetails$PRICE)
+OfferDetails$PRICE_ORIGINAL <- scale(OfferDetails$PRICE_ORIGINAL)
+OfferDetails$PRICE_PER_DAY <- scale(OfferDetails$PRICE_PER_DAY)
+
+
+
+
+
+
+
+
+
