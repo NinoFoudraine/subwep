@@ -11,17 +11,20 @@ library(data.table)
 
 '%ni%' <- Negate('%in%')
 
-itReLS <- function(lambda_vector, train, validation, epsilon, userlist){
+itReLS <- function(lambda_vector, train, validation, epsilon, userlist, AE_list_under_threshold){
   AE_folds <- list()
+  MAE_folds <- rep(NA, length(train))
   MAE_lambda <- rep(NA, length(lambda_vector))
-  MAE_zero_folds <- rep(NA, length(folds))
-  MAE_clickrate_folds <- rep(NA, length(folds))
+  MAE_folds_boven_threshold <- rep(NA, length(length(train)))
+  MAE_lambda_boven_threshold <- rep(NA, length(lambda_vector))
+  # MAE_zero_folds <- rep(NA, length(train))
+  # MAE_clickrate_folds <- rep(NA, length(train))
   
   for (l in 1:length(lambda_vector)) {
     print(paste0('Lambda ', l))
     lambda <- lambda_vector[l]
     
-    for (i in 1:length(folds)) {
+    for (i in 1:length(train)) {
       print(paste0('Fold ', i))
       start_time <- Sys.time()
       
@@ -65,21 +68,28 @@ itReLS <- function(lambda_vector, train, validation, epsilon, userlist){
       }
       game_probs <- dplyr::bind_rows(total_probs)
       
-      AE_folds[[i]] <- abs(game_probs$CLICK - game_probs$click_prob)
+      #AE_folds[[i]] <- abs(game_probs$CLICK - game_probs$click_prob)
+      AE_folds[[i]] <- c(abs(game_probs$CLICK - game_probs$click_prob),AE_list_under_threshold[[i]])
+  
+      MAE_folds[i] <- mean(AE_folds[[i]])
+      MAE_folds_boven_threshold[i] <- mean(abs(game_probs$CLICK - game_probs$click_prob))
       
-      MAE_zero_folds[i] <- mean(game_probs$CLICK)
-      click_rate <- mean(train_set$CLICK)
-      MAE_clickrate_folds[i] <- mean(x$AE_clickrate)
+#      MAE_zero_folds[i] <- mean(game_probs$CLICK)
+#      click_rate <- mean(train_set$CLICK)
+#      MAE_clickrate_folds[i] <- mean(x$AE_clickrate)
       
       end_time <- Sys.time()
       print(end_time - start_time)
     }
+    
     MAE_lambda[l] <- mean(MAE_folds)
+    MAE_lambda_boven_threshold[l] <- mean(MAE_folds_boven_threshold)
   }
-  MAE_zero <- mean(MAE_zero_folds)
-  MAE_clickrate <- mean(MAE_clickrate_folds) 
+  # MAE_zero <- mean(MAE_zero_folds)
+  # MAE_clickrate <- mean(MAE_clickrate_folds) 
   
-  return(list(MAE_table = rbind(MAE_lambda, MAE_zero, MAE_clickrate), probs = game_probs))  
+  #return(list(MAE_table = rbind(MAE_lambda, MAE_zero, MAE_clickrate), probs = game_probs))  
+  return(list(MAE_table = rbind(MAE_lambda, MAE_lambda_boven_threshold), probs = game_probs))
 }
 
 
@@ -132,7 +142,8 @@ Observations = read.csv(file.choose(), header = T, sep = ';',stringsAsFactors = 
 
 # STAP 1: Delete zero clickers
 clickrate_per_user <- aggregate(Observations$CLICK, by = list(user = Observations$USERID), FUN = mean)
-nonzero_clickers <- clickrate_per_user$user[clickrate_per_user$x > 0]
+obs_per_user <- aggregate(Observations$CLICK, by = list(user = Observations$USERID), FUN = length)
+nonzero_clickers <- clickrate_per_user$user[clickrate_per_user$x > 0 & obs_per_user$x > 1]
 Observations <- Observations[Observations$USERID %in% nonzero_clickers,]
 
 # STAP 2: Split data in train-test (met alle data)
@@ -168,45 +179,5 @@ for (i in 1:n_folds){
 }
 
 # STAP 5: Run Algoritme
-
-results <- itReLS(lambda_vector = lambda_vector, folds = folds, epsilon = epsilon, training = training, userlist = userlist_part_1)
-
-
-
-
-#userlist2 <- clicks_per_user$user[clicks_per_user$x > 0 & obs_per_user$x >= 8 & clickrate_per_user$x >= 0.5 & clickrate_per_user$x< 1]
-userlist2 <- clicks_per_user$user[clickrate_per_user$x > 0] ## 0 aanpassen naar ondergrens
-zeroclickers <- clicks_per_user$user[-userlist2]
-
-### error bepalen van zeroclickers
-Observations_zero <- Observations[Observat]
-
-# STAP 2: Split data in 4 stukken (data opnieuw inloaden bij nieuwe part)
-userlist_part_1 <- userlist2[1:round(1/2*length(userlist2))]
-#userlist_part_1 <- 44811506
-  # part2 <- userlist
-# etc
-Observations1 <- Observations[Observations$USERID %in% userlist_part_1,]
-
-# STAP 3: Data split in train-test set (voor kfold train-validation)
-set.seed(1908)
-intrain <- createDataPartition(Observations1$USERID, p = 0.8, list = F) 
-training <- Observations1[intrain,] # train
-testing  <- Observations1[-intrain,] # test
-
-
-# STAP 4: Zet parameters
-n_folds <- 4
-lambda_vector <- c(0.1, exp(1),  exp(4),  exp(7), exp(10), exp(12), exp(15))
-epsilon <- 10^-4
-
-# STAP 5: Maak Folds
-set.seed(1941)
-folds <- createFolds(training$USERID, k = n_folds, list = TRUE, returnTrain = FALSE)
-
-# STAP 6: Run Algoritme
-
-results <- itReLS(lambda_vector = lambda_vector, folds = folds, epsilon = epsilon, training = training, userlist = userlist_part_1)
-results$MAE_table
-View(results$probs)
-aggregate(results$probs$click_prob, by = list(results$probs$CLICK), FUN = mean)
+userlist_part_1 <- userlist_threshold[1:round(1/100*length(userlist_threshold))]
+results <- itReLS(lambda_vector = lambda_vector, train = train_boven_threshold, validation = validation_boven_threshold, epsilon = epsilon, userlist = userlist_part_1, AE_list_under_threshold = AE_under_threshold)
