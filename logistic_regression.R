@@ -9,8 +9,10 @@ library(data.table)
 
 # Laad Functies in
 
-itReLS <- function(lambda_vector, folds, epsilon, training, userlist){
-  MAE_folds <- rep(NA, length(folds))
+'%ni%' <- Negate('%in%')
+
+itReLS <- function(lambda_vector, train, validation, epsilon, userlist){
+  AE_folds <- list()
   MAE_lambda <- rep(NA, length(lambda_vector))
   MAE_zero_folds <- rep(NA, length(folds))
   MAE_clickrate_folds <- rep(NA, length(folds))
@@ -23,10 +25,9 @@ itReLS <- function(lambda_vector, folds, epsilon, training, userlist){
       print(paste0('Fold ', i))
       start_time <- Sys.time()
       
-      train_kfold <- as.data.table(training[-folds[[i]],])
-      validation_kfold <- as.data.table(training[folds[[i]],])
+      train_kfold <- as.data.table(train[[i]])
+      validation_kfold <- as.data.table(validation[[i]])
       total_probs <- list()
-      AE_clickrate_user <- list()
       
       for (j in 1:length(userlist)){
         # training set
@@ -64,7 +65,7 @@ itReLS <- function(lambda_vector, folds, epsilon, training, userlist){
       }
       game_probs <- dplyr::bind_rows(total_probs)
       
-      MAE_folds[i] <- mean(abs(game_probs$CLICK - game_probs$click_prob))
+      AE_folds[[i]] <- abs(game_probs$CLICK - game_probs$click_prob)
       
       MAE_zero_folds[i] <- mean(game_probs$CLICK)
       click_rate <- mean(train_set$CLICK)
@@ -129,12 +130,56 @@ FitRidge <- function(parm,data){
 # STAP 0: Data inladen
 Observations = read.csv(file.choose(), header = T, sep = ';',stringsAsFactors = FALSE)
 
-# STAP 1: Delete zero clickers en users met minder dan 8 observaties (geen kfold mogelijk)
-clicks_per_user <- aggregate(Observations$CLICK, by = list(user = Observations$USERID), FUN = sum)
-obs_per_user <- aggregate(Observations$USERID, by = list(user = Observations$USERID), FUN = length)
+# STAP 1: Delete zero clickers
 clickrate_per_user <- aggregate(Observations$CLICK, by = list(user = Observations$USERID), FUN = mean)
+nonzero_clickers <- clickrate_per_user$user[clickrate_per_user$x > 0]
+Observations <- Observations[Observations$USERID %in% nonzero_clickers,]
 
-userlist2 <- clicks_per_user$user[clicks_per_user$x > 0 & obs_per_user$x >= 8 & clickrate_per_user$x >= 0.5 & clickrate_per_user$x< 1]
+# STAP 2: Split data in train-test (met alle data)
+set.seed(1908)
+intrain <- createDataPartition(Observations$USERID, p = 0.8, list = F) 
+training <- Observations[intrain,] # train
+testing  <- Observations[-intrain,] # test
+
+# STAP 3: Zet parameters
+n_folds <- 4
+lambda_vector <- c(0.1, exp(1),  exp(4),  exp(7), exp(10), exp(12), exp(15))
+epsilon <- 10^-4
+threshold <- 0.1 # pas deze aan
+
+# STAP 4: Split in Repeated Holdout folds
+# clickrate_training <- aggregate(training$CLICK, by = list(user = training$USERID), FUN = mean)
+userlist_threshold <- clickrate_per_user$user[clickrate_per_user$x > threshold]
+train_boven_threshold <- list()
+validation_boven_threshold <- list()
+AE_under_threshold <- list()
+
+for (i in 1:n_folds){
+  set.seed(2*i)
+  intrain_fold <- createDataPartition(training$USERID, p = 0.8, list = F) 
+  tussenstap_train <- training[intrain_fold,]
+  tussenstap_validation <- training[-intrain_fold,]
+  
+  # STAP 4: Haal 0 schattingen eruit
+  train_boven_threshold[[i]] <- tussenstap_train[tussenstap_train$USERID %in% userlist_threshold,]
+  validation_boven_threshold[[i]] <- tussenstap_validation[tussenstap_validation$USERID %in% userlist_threshold,]
+  validation_under_threshold <- tussenstap_validation[tussenstap_validation$USERID %ni% userlist_threshold,]
+  AE_under_threshold[[i]] <- validation_under_threshold$CLICK
+}
+
+# STAP 5: Run Algoritme
+
+results <- itReLS(lambda_vector = lambda_vector, folds = folds, epsilon = epsilon, training = training, userlist = userlist_part_1)
+
+
+
+
+#userlist2 <- clicks_per_user$user[clicks_per_user$x > 0 & obs_per_user$x >= 8 & clickrate_per_user$x >= 0.5 & clickrate_per_user$x< 1]
+userlist2 <- clicks_per_user$user[clickrate_per_user$x > 0] ## 0 aanpassen naar ondergrens
+zeroclickers <- clicks_per_user$user[-userlist2]
+
+### error bepalen van zeroclickers
+Observations_zero <- Observations[Observat]
 
 # STAP 2: Split data in 4 stukken (data opnieuw inloaden bij nieuwe part)
 userlist_part_1 <- userlist2[1:round(1/2*length(userlist2))]
