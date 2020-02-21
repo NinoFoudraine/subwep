@@ -157,33 +157,41 @@ testing  <- Observations[-intrain,] # test
 n_folds <- 4
 lambda_vector <- c(0.1, exp(1),  exp(4),  exp(7), exp(10), exp(12), exp(15))
 epsilon <- 10^-4
-threshold <- 0.5 # pas deze aan
 
-# STAP 4: Split in Repeated Holdout folds
-# clickrate_training <- aggregate(training$CLICK, by = list(user = training$USERID), FUN = mean)
-userlist_threshold <- clickrate_per_user$user[clickrate_per_user$x > threshold]
-train_boven_threshold <- list()
-validation_boven_threshold <- list()
-AE_under_threshold <- list()
-AE_clickrate_under_threshold <- list()
+total_results <- matrix(NA, 4*6, length(lambda_vector)) # rows van matrix lengte van 4*j in forloop hieronder
 
-for (i in 1:n_folds){
-  set.seed(2*i)
-  intrain_fold <- createDataPartition(training$USERID, p = 0.8, list = F) 
-  tussenstap_train <- training[intrain_fold,]
-  tussenstap_validation <- training[-intrain_fold,]
+#run for different thresholds (0.95, 0.90, 0.85, 0.80, 0.75, 0.70)
+for (j in 1:6) { 
+
+  threshold <- 1 - j/20 
+
+  # STAP 4: Split in Repeated Holdout folds
+  # clickrate_training <- aggregate(training$CLICK, by = list(user = training$USERID), FUN = mean)
+  userlist_threshold <- clickrate_per_user$user[clickrate_per_user$x > threshold]
+  train_boven_threshold <- list()
+  validation_boven_threshold <- list()
+  AE_under_threshold <- list()
+  AE_clickrate_under_threshold <- list()
+
+  for (i in 1:n_folds){
+    set.seed(2*i)
+    intrain_fold <- createDataPartition(training$USERID, p = 0.8, list = F) 
+    tussenstap_train <- training[intrain_fold,]
+    tussenstap_validation <- training[-intrain_fold,]
   
-  # STAP 4: Haal 0 schattingen eruit
-  train_boven_threshold[[i]] <- tussenstap_train[tussenstap_train$USERID %in% userlist_threshold,]
-  validation_boven_threshold[[i]] <- tussenstap_validation[tussenstap_validation$USERID %in% userlist_threshold,]
-  validation_under_threshold <- tussenstap_validation[tussenstap_validation$USERID %ni% userlist_threshold,]
-  AE_under_threshold[[i]] <- validation_under_threshold$CLICK
-  validation_under_threshold <- merge(validation_under_threshold,clickrate_per_user, by.x = 'USERID', by.y = 'user')
-  AE_clickrate_under_threshold[[i]] <- abs(validation_under_threshold$CLICK - validation_under_threshold$x)
+    # STAP 5: Haal 0 schattingen eruit
+    train_boven_threshold[[i]] <- tussenstap_train[tussenstap_train$USERID %in% userlist_threshold,]
+    validation_boven_threshold[[i]] <- tussenstap_validation[tussenstap_validation$USERID %in% userlist_threshold,]
+    validation_under_threshold <- tussenstap_validation[tussenstap_validation$USERID %ni% userlist_threshold,]
+    AE_under_threshold[[i]] <- validation_under_threshold$CLICK
+    validation_under_threshold <- merge(validation_under_threshold,clickrate_per_user, by.x = 'USERID', by.y = 'user')
+    AE_clickrate_under_threshold[[i]] <- abs(validation_under_threshold$CLICK - validation_under_threshold$x)
+  }
+
+  # STAP 6: Run Algoritme
+
+results <- itReLS(lambda_vector = lambda_vector, train = train_boven_threshold, validation = validation_boven_threshold, epsilon = epsilon, userlist = userlist_threshold, AE_list_under_threshold = AE_under_threshold, clickrate = clickrate_per_user, AE_clickrate_list_under_threshold = AE_clickrate_under_threshold)
+
+total_results[(1+(j-1)*4):(4+(j-1)*4),1:7] <- results$MAE_table
+
 }
-
-# STAP 5: Run Algoritme
-userlist_part_1 <- userlist_threshold[1:round(1/1*length(userlist_threshold))]
-results <- itReLS(lambda_vector = lambda_vector, train = train_boven_threshold, validation = validation_boven_threshold, epsilon = epsilon, userlist = userlist_part_1, AE_list_under_threshold = AE_under_threshold, clickrate = clickrate_per_user, AE_clickrate_list_under_threshold = AE_clickrate_under_threshold)
-results$MAE_table
-

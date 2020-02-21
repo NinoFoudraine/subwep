@@ -228,12 +228,3 @@ OfferDetails <- dplyr::select_if(OfferDetails, is.numeric)
 OfferDetails$PRICE <- scale(OfferDetails$PRICE)
 OfferDetails$PRICE_ORIGINAL <- scale(OfferDetails$PRICE_ORIGINAL)
 OfferDetails$PRICE_PER_DAY <- scale(OfferDetails$PRICE_PER_DAY)
-
-
-
-
-
-
-
-
-
