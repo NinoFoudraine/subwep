@@ -157,13 +157,15 @@ testing  <- Observations[-intrain,] # test
 n_folds <- 4
 lambda_vector <- c(0.1, exp(1),  exp(4),  exp(7), exp(10), exp(12), exp(15))
 epsilon <- 10^-4
-
-total_results <- matrix(NA, 4*6, length(lambda_vector)) # rows van matrix lengte van 4*j in forloop hieronder
+threshold_vector <- seq(0,1, by = 0.05)
+threshold_vector <- threshold_vector[1:9] #### voor Luuk
+threshold_vector <- threshold_vector[10:21] #### voor Nino
+total_results <- matrix(NA, 4*length(threshold_vector), length(lambda_vector)) # rows van matrix lengte van 4*j in forloop hieronder
 
 #run for different thresholds (0.95, 0.90, 0.85, 0.80, 0.75, 0.70)
-for (j in 1:6) { 
+for (j in 1:length(threshold_vector)) { 
 
-  threshold <- 1 - j/20 
+  threshold <- threshold_vector[j]
 
   # STAP 4: Split in Repeated Holdout folds
   # clickrate_training <- aggregate(training$CLICK, by = list(user = training$USERID), FUN = mean)
