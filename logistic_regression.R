@@ -55,8 +55,16 @@ itReLS <- function(lambda_vector, train, validation, epsilon, userlist, AE_list_
         ols <- lm(CLICK~., train_set)
         parm <- ols$coefficients
         parm[is.na(parm)] <- 0
+        
+        #print(j)
+        #print(userlist[j])
         # Parameter estimation with Iteratively Re-weighted Least Squares
         opt_parm <- RidgeRegr(parm, train_set, lambda, epsilon)
+        
+        if (opt_parm == 'warning') {
+          print(paste0('warning, diverges for user: ', j, ' - ', userlist[j]))
+          next
+        }
 
         # Fit test observations
         prob <- FitRidge(opt_parm, test_set)
@@ -107,6 +115,9 @@ RidgeRegr <- function(parm, data, lambda, epsilon){
     beta_k = beta_k1
     for (i in 1:n) {
       b <- exp(sum(x[i,]*beta_k))
+      if (is.na(b)) {
+        return('warning')
+      }
       if (b == Inf){
         z[i] <- 1 
         next
@@ -120,6 +131,9 @@ RidgeRegr <- function(parm, data, lambda, epsilon){
     r <- lambda * beta_k
     r[1] <- 0
     gradient <- t(x) %*% (y - z) - r
+    if (any(is.na(gradient))) {
+      return('warning')
+    }
     beta_k1 <- beta_k + ginv(Hessian) %*% gradient
     j = j+1
   }
@@ -155,11 +169,11 @@ testing  <- Observations[-intrain,] # test
 
 # STAP 3: Zet parameters
 n_folds <- 4
-lambda_vector <- c(0.1, exp(1),  exp(4),  exp(7), exp(10), exp(12), exp(15))
+lambda_vector <- c(0, 1, exp(1),  exp(4),  exp(7), exp(10), exp(13))
 epsilon <- 10^-4
 threshold_vector <- seq(0,1, by = 0.05)
-threshold_vector <- threshold_vector[1:9] #### voor Luuk
-threshold_vector <- threshold_vector[10:21] #### voor Nino
+threshold_vector <- threshold_vector[1:4] #### voor Luuk
+#threshold_vector <- threshold_vector[10:21] #### voor Nino
 total_results <- matrix(NA, 4*length(threshold_vector), length(lambda_vector)) # rows van matrix lengte van 4*j in forloop hieronder
 
 #run for different thresholds (0.95, 0.90, 0.85, 0.80, 0.75, 0.70)
