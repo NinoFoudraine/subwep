@@ -38,13 +38,29 @@ for (i in 1:dim(OfferDetails)[1]){
   OfferDetails$MEAL_PLAN[i] = preprocess(OfferDetails$MEAL_PLAN[i])
 }
 
+# binary usp
+test <- strsplit(c(OfferDetails$USP1,OfferDetails$USP2,OfferDetails$USP3), " ")
+test2 <- unlist(test)
+testfreq <- table(test2)
+result <- cbind(names(testfreq),as.integer(testfreq))
+d <- as.data.frame(result, stringsAsFactors=FALSE)
+d[, 2] <- as.numeric(d[, 2]) # coerce the relevant column to numeric
+result3 <- d[order(d[, 2]), ]
+
+write.csv2(result3,file= 'USP.csv')
+
 #replace string 'NULL' by NA
 OfferDetails[ OfferDetails == 'NULL' ] <- NA
 
 # review rating, change '-' and zeros to empty cell
-OfferDetails$REVIEW_RATING[OfferDetails$REVIEW_RATING == '-'] <- '' 
-OfferDetails$REVIEW_RATING[OfferDetails$REVIEW_RATING == 0] <- ''
+OfferDetails$REVIEW_RATING[ OfferDetails$REVIEW_RATING == 0 ] <- NA
+OfferDetails$REVIEW_RATING[ OfferDetails$REVIEW_RATING == '-' ] <- NA
 OfferDetails$REVIEW_RATING <- str_replace(OfferDetails$REVIEW_RATING, ',', '.')
+OfferDetails$REVIEW_RATING <- as.numeric(OfferDetails$REVIEW_RATING)
+
+# missing review rating equal to accommodation mean
+OfferDetails$REVIEW_RATING <- with(OfferDetails, ave(REVIEW_RATING, ACCOMMODATION_NAME, FUN = function(x) replace(x, is.na(x), mean(x, na.rm = TRUE)))) ## replace with accommodation based mean
+OfferDetails$REVIEW_RATING[is.na(OfferDetails$REVIEW_RATING)] <- mean(OfferDetails$REVIEW_RATING, na.rm = TRUE) ## If accommodation mean not available, use general mean
 
 # star rating, change comma by dot for numeric values
 OfferDetails$STAR_RATING <- str_replace(OfferDetails$STAR_RATING, ',', '.')
@@ -107,9 +123,6 @@ OfferDetails$REGION_NAME[str_detect(OfferDetails$REGION_NAME, 'Ege') == TRUE & s
 # personen per kamer
 OfferDetails = merge(OfferDetails, Occupancy_table, by.x = "ROOM_OCCUPANCY", by.y = "ï..Room_types", sort = FALSE)
 
-# discount rate
-OfferDetails$DISCOUNT_RATE <- (as.numeric(OfferDetails$PRICE_ORIGINAL) - as.numeric(OfferDetails$PRICE)) / as.numeric(OfferDetails$PRICE_ORIGINAL)
-
 # departure month binary vars
 OfferDetails$JANUARY <- as.numeric(str_detect(OfferDetails$DEPARTURE_DATE, 'Ja')) + as.numeric(str_detect(OfferDetails$DEPARTURE_DATE, 'ja'))
 OfferDetails$FEBRUARY <- as.numeric(str_detect(OfferDetails$DEPARTURE_DATE, 'Fe')) + as.numeric(str_detect(OfferDetails$DEPARTURE_DATE, 'fe'))
@@ -155,20 +168,20 @@ OfferDetails$OCTOBER <- as.numeric(OfferDetails$OCTOBER)
 OfferDetails$NOVEMBER <- as.numeric(OfferDetails$NOVEMBER)
 OfferDetails$DECEMBER <- as.numeric(OfferDetails$DECEMBER)
 
-# review rating correction
-OfferDetails$REVIEW_RATING[ OfferDetails$REVIEW_RATING == 0 ] <- NA
-OfferDetails$REVIEW_RATING[ OfferDetails$REVIEW_RATING == '-' ] <- NA
-OfferDetails$REVIEW_RATING = str_replace(OfferDetails$REVIEW_RATING,',', '.')
-OfferDetails$REVIEW_RATING <- as.numeric(OfferDetails$REVIEW_RATING)
-
 # missing values
-OfferDetails$REVIEW_RATING[is.na(OfferDetails$REVIEW_RATING)] <- mean(OfferDetails$REVIEW_RATING[!is.na(OfferDetails$REVIEW_RATING)])
 OfferDetails$PRICE[is.na(OfferDetails$PRICE)] <- 299
 OfferDetails$PRICE_ORIGINAL[is.na(OfferDetails$PRICE_ORIGINAL)] <- OfferDetails$PRICE[is.na(OfferDetails$PRICE_ORIGINAL)]
 OfferDetails$DISCOUNT_RATE[is.na(OfferDetails$DISCOUNT_RATE)] <- 0
 
-# price per day
+#taking log price for normal distribution
+OfferDetails$PRICE <- log(OfferDetails$PRICE)
+OfferDetails$PRICE_ORIGINAL <- log(OfferDetails$PRICE_ORIGINAL)
+
+# price per day -> number of days linear combination price/price per day, so not needed anymore.
 OfferDetails$PRICE_PER_DAY <- (as.numeric(OfferDetails$PRICE) / as.numeric(OfferDetails$DURATION))
+
+# discount rate
+OfferDetails$DISCOUNT_RATE <- (as.numeric(OfferDetails$PRICE_ORIGINAL) - as.numeric(OfferDetails$PRICE)) / as.numeric(OfferDetails$PRICE_ORIGINAL)
 
 # transforming USPs in to binary variables
 OfferDetails$BEACH <- as.numeric(str_detect(OfferDetails$USP1, 'strand')) + as.numeric(str_detect(OfferDetails$USP2, 'strand')) +  as.numeric(str_detect(OfferDetails$USP3, 'strand'))
@@ -205,26 +218,53 @@ OfferDetails$HP <- ifelse(OfferDetails$MEAL_PLAN == 'HP',1,0)
 OfferDetails$VP <- ifelse(OfferDetails$MEAL_PLAN == 'VP',1,0)
 
 ## Duration (alles = 0 betekent 8 dagen)
-OfferDetails$FOUR_DAYS <- ifelse(OfferDetails$DURATION == 4,1,0)
-OfferDetails$FIVE_DAYS <- ifelse(OfferDetails$DURATION == 5,1,0)
-OfferDetails$SIX_DAYS <- ifelse(OfferDetails$DURATION == 6,1,0)
-OfferDetails$SEVEN_DAYS <- ifelse(OfferDetails$DURATION == 7,1,0)
-OfferDetails$NINE_DAYS <- ifelse(OfferDetails$DURATION == 9,1,0)
-OfferDetails$TEN_DAYS <- ifelse(OfferDetails$DURATION == 10,1,0)
-OfferDetails$ELEVEN_DAYS <- ifelse(OfferDetails$DURATION == 11,1,0)
-OfferDetails$TWELVE_DAYS <- ifelse(OfferDetails$DURATION == 12,1,0)
-OfferDetails$THIRTEEN_DAYS <- ifelse(OfferDetails$DURATION == 13,1,0)
+#OfferDetails$FOUR_DAYS <- ifelse(OfferDetails$DURATION == 4,1,0)
+#OfferDetails$FIVE_DAYS <- ifelse(OfferDetails$DURATION == 5,1,0)
+#OfferDetails$SIX_DAYS <- ifelse(OfferDetails$DURATION == 6,1,0)
+#OfferDetails$SEVEN_DAYS <- ifelse(OfferDetails$DURATION == 7,1,0)
+#OfferDetails$NINE_DAYS <- ifelse(OfferDetails$DURATION == 9,1,0)
+#OfferDetails$TEN_DAYS <- ifelse(OfferDetails$DURATION == 10,1,0)
+#OfferDetails$ELEVEN_DAYS <- ifelse(OfferDetails$DURATION == 11,1,0)
+#OfferDetails$TWELVE_DAYS <- ifelse(OfferDetails$DURATION == 12,1,0)
+#OfferDetails$THIRTEEN_DAYS <- ifelse(OfferDetails$DURATION == 13,1,0)
+
+#making cat for number of persons/ max volw/ volw kind.
+cat_nr_persons <- unique(cbind(OfferDetails$Persoon,OfferDetails$max..volwassen,OfferDetails$max..kinderen))
+
+OfferDetails$Person1 <- (OfferDetails$Persoon == cat_nr_persons[2,1]) * (OfferDetails$max..volwassen == cat_nr_persons[2,2]) * (OfferDetails$max..kinderen == cat_nr_persons[2,3])
+OfferDetails$Person2 <- (OfferDetails$Persoon == cat_nr_persons[3,1]) * (OfferDetails$max..volwassen == cat_nr_persons[3,2]) * (OfferDetails$max..kinderen == cat_nr_persons[3,3])
+OfferDetails$Person3 <- (OfferDetails$Persoon == cat_nr_persons[4,1]) * (OfferDetails$max..volwassen == cat_nr_persons[4,2]) * (OfferDetails$max..kinderen == cat_nr_persons[4,3])
+OfferDetails$Person4 <- (OfferDetails$Persoon == cat_nr_persons[5,1]) * (OfferDetails$max..volwassen == cat_nr_persons[5,2]) * (OfferDetails$max..kinderen == cat_nr_persons[5,3])
+OfferDetails$Person5 <- (OfferDetails$Persoon == cat_nr_persons[6,1]) * (OfferDetails$max..volwassen == cat_nr_persons[6,2]) * (OfferDetails$max..kinderen == cat_nr_persons[6,3])
+OfferDetails$Person6 <- (OfferDetails$Persoon == cat_nr_persons[7,1]) * (OfferDetails$max..volwassen == cat_nr_persons[7,2]) * (OfferDetails$max..kinderen == cat_nr_persons[7,3])
+OfferDetails$Person7 <- (OfferDetails$Persoon == cat_nr_persons[8,1]) * (OfferDetails$max..volwassen == cat_nr_persons[8,2]) * (OfferDetails$max..kinderen == cat_nr_persons[8,3])
+OfferDetails$Person8 <- (OfferDetails$Persoon == cat_nr_persons[9,1]) * (OfferDetails$max..volwassen == cat_nr_persons[9,2]) * (OfferDetails$max..kinderen == cat_nr_persons[9,3])
+OfferDetails$Person9 <- (OfferDetails$Persoon == cat_nr_persons[10,1]) * (OfferDetails$max..volwassen == cat_nr_persons[10,2]) * (OfferDetails$max..kinderen == cat_nr_persons[10,3])
+OfferDetails$Person10 <- (OfferDetails$Persoon == cat_nr_persons[11,1]) * (OfferDetails$max..volwassen == cat_nr_persons[11,2]) * (OfferDetails$max..kinderen == cat_nr_persons[11,3])
+OfferDetails$Person11 <- (OfferDetails$Persoon == cat_nr_persons[12,1]) * (OfferDetails$max..volwassen == cat_nr_persons[12,2]) * (OfferDetails$max..kinderen == cat_nr_persons[12,3])
+OfferDetails$Person12 <- (OfferDetails$Persoon == cat_nr_persons[13,1]) * (OfferDetails$max..volwassen == cat_nr_persons[13,2]) * (OfferDetails$max..kinderen == cat_nr_persons[13,3])
 
 ## remove Duration column
 OfferDetails <- subset(OfferDetails, select = -DURATION)
 
+# Standardize price/ discount price
+OfferDetails$PRICE -> (OfferDetails$PRICE)/ max(OfferDetails$PRICE)
+#OfferDetails$PRICE -> (OfferDetails$PRICE - min(OfferDetails$PRICE)) / (max(OfferDetails$PRICE)- min(OfferDetails$PRICE))
+
+# Review between 0-1
+OfferDetails$REVIEW_RATING <- OfferDetails$REVIEW_RATING/ 10
+
+# Star between 0-1
+OfferDetails$STAR_RATING <- OfferDetails$STAR_RATING/ 5
+
 # order by offerid + mailid
 OfferDetails = OfferDetails[order(OfferDetails$OFFERID, OfferDetails$MAILID),]
 
-# keep only numeric values
+# Keep only numeric values
 OfferDetails <- dplyr::select_if(OfferDetails, is.numeric)
 
-#Standardize price/ discount price
-OfferDetails$PRICE <- scale(OfferDetails$PRICE)
-OfferDetails$PRICE_ORIGINAL <- scale(OfferDetails$PRICE_ORIGINAL)
-OfferDetails$PRICE_PER_DAY <- scale(OfferDetails$PRICE_PER_DAY)
+
+
+
+
+
