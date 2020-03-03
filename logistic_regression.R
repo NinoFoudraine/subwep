@@ -172,7 +172,7 @@ n_folds <- 4
 lambda_vector <- c(0, 1, exp(1),  exp(4),  exp(7), exp(10), exp(13))
 epsilon <- 10^-4
 threshold_vector <- seq(0,1, by = 0.05)
-threshold_vector <- threshold_vector[1:4] #### voor Luuk
+threshold_vector <- threshold_vector[18] #### voor Luuk
 #threshold_vector <- threshold_vector[10:21] #### voor Nino
 total_results <- matrix(NA, 4*length(threshold_vector), length(lambda_vector)) # rows van matrix lengte van 4*j in forloop hieronder
 
@@ -182,8 +182,8 @@ for (j in 1:length(threshold_vector)) {
   threshold <- threshold_vector[j]
 
   # STAP 4: Split in Repeated Holdout folds
-  # clickrate_training <- aggregate(training$CLICK, by = list(user = training$USERID), FUN = mean)
-  userlist_threshold <- clickrate_per_user$user[clickrate_per_user$x > threshold]
+  # 
+  
   train_boven_threshold <- list()
   validation_boven_threshold <- list()
   AE_under_threshold <- list()
@@ -194,13 +194,15 @@ for (j in 1:length(threshold_vector)) {
     intrain_fold <- createDataPartition(training$USERID, p = 0.8, list = F) 
     tussenstap_train <- training[intrain_fold,]
     tussenstap_validation <- training[-intrain_fold,]
-  
+    clickrate_training <- aggregate(tussenstap_train$CLICK, by = list(user = tussenstap_train$USERID), FUN = mean)
+    userlist_threshold <- clickrate_training$user[clickrate_training$x > threshold]
+    
     # STAP 5: Haal 0 schattingen eruit
     train_boven_threshold[[i]] <- tussenstap_train[tussenstap_train$USERID %in% userlist_threshold,]
     validation_boven_threshold[[i]] <- tussenstap_validation[tussenstap_validation$USERID %in% userlist_threshold,]
     validation_under_threshold <- tussenstap_validation[tussenstap_validation$USERID %ni% userlist_threshold,]
     AE_under_threshold[[i]] <- validation_under_threshold$CLICK
-    validation_under_threshold <- merge(validation_under_threshold,clickrate_per_user, by.x = 'USERID', by.y = 'user')
+    validation_under_threshold <- merge(validation_under_threshold,clickrate_training, by.x = 'USERID', by.y = 'user')
     AE_clickrate_under_threshold[[i]] <- abs(validation_under_threshold$CLICK - validation_under_threshold$x)
   }
 
