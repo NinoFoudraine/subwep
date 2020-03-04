@@ -119,8 +119,6 @@ d <- as.data.frame(usp, stringsAsFactors=FALSE)
 d[, 2] <- as.numeric(d[, 2]) # coerce the relevant column to numeric
 usp2 <- d[order(d[, 2], decreasing = TRUE), ]
 
-write.csv2(usp2,file= 'USP.csv')
-
 strings <- c("strand", "baai", "zee", "beach", "playa", "haven", "pier", "water", "snorkel")
 USP.strand <- (str_detect(OfferDetails$USP1, paste(strings, collapse = "|"))) + (str_detect(OfferDetails$USP2, paste(strings, collapse = "|"))) + (str_detect(OfferDetails$USP3, paste(strings, collapse = "|")))
 OfferDetails$USP.strand <- ifelse(USP.strand > 0, 1, 0)
@@ -133,7 +131,7 @@ strings <- c("zwem", "glij", "aquapark", "aqualava", "aqualand", "pool")
 USP.zwembad <- (str_detect(OfferDetails$USP1, paste(strings, collapse = "|"))) + (str_detect(OfferDetails$USP2, paste(strings, collapse = "|"))) + (str_detect(OfferDetails$USP3, paste(strings, collapse = "|")))
 OfferDetails$USP.zwembad <- ifelse(USP.zwembad > 0, 1, 0)
 
-strings <- c("adults", "volwassen", "rust", "+", "stellen")
+strings <- c("adults", "volwassen", "rust", "stellen", "\\+")
 USP.volwassenen <- (str_detect(OfferDetails$USP1, paste(strings, collapse = "|"))) + (str_detect(OfferDetails$USP2, paste(strings, collapse = "|"))) + (str_detect(OfferDetails$USP3, paste(strings, collapse = "|")))
 OfferDetails$USP.volwassenen <- ifelse(USP.volwassenen > 0, 1, 0)
 
