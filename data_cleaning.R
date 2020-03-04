@@ -150,7 +150,7 @@ USP.centrum <- (str_detect(OfferDetails$USP1, paste(strings, collapse = "|"))) +
 OfferDetails$USP.centrum <- ifelse(USP.centrum> 0, 1, 0)
 
 # personen per kamer
-OfferDetails = merge(OfferDetails, Occupancy_table, by.x = "ROOM_OCCUPANCY", by.y = "ï..Room_types", sort = FALSE)
+OfferDetails = merge(OfferDetails, Occupancy_table, by.x = "ROOM_OCCUPANCY", by.y = "�..Room_types", sort = FALSE)
 
 # departure month binary vars
 OfferDetails$JANUARY <- as.numeric(str_detect(OfferDetails$DEPARTURE_DATE, 'Ja')) + as.numeric(str_detect(OfferDetails$DEPARTURE_DATE, 'ja'))
@@ -267,7 +267,7 @@ OfferDetails$Person10 <- (OfferDetails$Persoon == cat_nr_persons[11,1]) * (Offer
 OfferDetails$Person11 <- (OfferDetails$Persoon == cat_nr_persons[12,1]) * (OfferDetails$max..volwassen == cat_nr_persons[12,2]) * (OfferDetails$max..kinderen == cat_nr_persons[12,3])
 OfferDetails$Person12 <- (OfferDetails$Persoon == cat_nr_persons[13,1]) * (OfferDetails$max..volwassen == cat_nr_persons[13,2]) * (OfferDetails$max..kinderen == cat_nr_persons[13,3])
 
-## remove Duration column and PRICE_ORIGINAL and Persoon and max..volwassenen and max..kinderen columns
+## remove Duration and PRICE_ORIGINAL and Persoon and max..volwassenen and max..kinderen column
 OfferDetails <- subset(OfferDetails, select = -c(DURATION, PRICE_ORIGINAL, Persoon, max..volwassen, max..kinderen))
 
 # Standardize price/ discount price
@@ -281,7 +281,7 @@ OfferDetails$REVIEW_RATING <- OfferDetails$REVIEW_RATING/ 10
 OfferDetails$STAR_RATING <- OfferDetails$STAR_RATING/ 5
 
 # Offer position between 0-1
-OfferDetails$OFFER_POSITION <- OfferDetails$OFFER_POSITION/14
+OfferDetails$OFFER_POSITION <- OfferDetails$OFFER_POSITION / 14
 
 # order by offerid + mailid
 OfferDetails = OfferDetails[order(OfferDetails$OFFERID, OfferDetails$MAILID),]
