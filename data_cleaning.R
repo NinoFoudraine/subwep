@@ -38,16 +38,6 @@ for (i in 1:dim(OfferDetails)[1]){
   OfferDetails$MEAL_PLAN[i] = preprocess(OfferDetails$MEAL_PLAN[i])
 }
 
-# binary usp
-test <- strsplit(c(OfferDetails$USP1,OfferDetails$USP2,OfferDetails$USP3), " ")
-test2 <- unlist(test)
-testfreq <- table(test2)
-result <- cbind(names(testfreq),as.integer(testfreq))
-d <- as.data.frame(result, stringsAsFactors=FALSE)
-d[, 2] <- as.numeric(d[, 2]) # coerce the relevant column to numeric
-result3 <- d[order(d[, 2]), ]
-
-write.csv2(result3,file= 'USP.csv')
 
 #replace string 'NULL' by NA
 OfferDetails[ OfferDetails == 'NULL' ] <- NA
@@ -120,6 +110,45 @@ OfferDetails$REGION_NAME[str_detect(OfferDetails$REGION_NAME, 'Ege') == TRUE & s
 #################### data transformation ###############################
 ########################################################################
 
+# binary usp
+help.usp <- strsplit(c(OfferDetails$USP1,OfferDetails$USP2,OfferDetails$USP3), " ")
+help.usp2 <- unlist(help.usp)
+testfreq <- table(help.usp2)
+usp <- cbind(names(testfreq),as.integer(testfreq))
+d <- as.data.frame(usp, stringsAsFactors=FALSE)
+d[, 2] <- as.numeric(d[, 2]) # coerce the relevant column to numeric
+usp2 <- d[order(d[, 2], decreasing = TRUE), ]
+
+write.csv2(usp2,file= 'USP.csv')
+
+strings <- c("strand", "baai", "zee", "beach", "playa", "haven", "pier", "water", "snorkel")
+USP.strand <- (str_detect(OfferDetails$USP1, paste(strings, collapse = "|"))) + (str_detect(OfferDetails$USP2, paste(strings, collapse = "|"))) + (str_detect(OfferDetails$USP3, paste(strings, collapse = "|")))
+OfferDetails$USP.strand <- ifelse(USP.strand > 0, 1, 0)
+
+strings <- c("restaurant", "buffet", "ontbijt", "carte", "diner", "maaltijd", "bakker", "snack", "cook")
+USP.eten <- (str_detect(OfferDetails$USP1, paste(strings, collapse = "|"))) + (str_detect(OfferDetails$USP2, paste(strings, collapse = "|"))) + (str_detect(OfferDetails$USP3, paste(strings, collapse = "|")))
+OfferDetails$USP.eten <- ifelse(USP.eten > 0, 1, 0)
+
+strings <- c("zwem", "glij", "aquapark", "aqualava", "aqualand", "pool", )
+USP.zwembad <- (str_detect(OfferDetails$USP1, paste(strings, collapse = "|"))) + (str_detect(OfferDetails$USP2, paste(strings, collapse = "|"))) + (str_detect(OfferDetails$USP3, paste(strings, collapse = "|")))
+OfferDetails$USP.zwembad <- ifelse(USP.zwembad > 0, 1, 0)
+
+strings <- c("adults", "volwassen", "rust", "+", "stellen")
+USP.volwassenen <- (str_detect(OfferDetails$USP1, paste(strings, collapse = "|"))) + (str_detect(OfferDetails$USP2, paste(strings, collapse = "|"))) + (str_detect(OfferDetails$USP3, paste(strings, collapse = "|")))
+OfferDetails$USP.volwassenen <- ifelse(USP.volwassenen > 0, 1, 0)
+
+strings <- c("familie", "speel", "gezin", "entertain", "jong", "junior", "kind", "kids", "miniclub", "animatie")
+USP.familie <- (str_detect(OfferDetails$USP1, paste(strings, collapse = "|"))) + (str_detect(OfferDetails$USP2, paste(strings, collapse = "|"))) + (str_detect(OfferDetails$USP3, paste(strings, collapse = "|")))
+OfferDetails$USP.familie <- ifelse(USP.familie > 0, 1, 0)
+
+strings <- c("nederland")
+USP.nederlandstalig <- (str_detect(OfferDetails$USP1, paste(strings, collapse = "|"))) + (str_detect(OfferDetails$USP2, paste(strings, collapse = "|"))) + (str_detect(OfferDetails$USP3, paste(strings, collapse = "|")))
+OfferDetails$USP.nederlandstalig <- ifelse(USP.nederlandstalig > 0, 1, 0)
+
+strings <- c("centrum", "cenraal", "centrale", "winkel")
+USP.centrum <- (str_detect(OfferDetails$USP1, paste(strings, collapse = "|"))) + (str_detect(OfferDetails$USP2, paste(strings, collapse = "|"))) + (str_detect(OfferDetails$USP3, paste(strings, collapse = "|")))
+OfferDetails$USP.centrum <- ifelse(USP.centrum> 0, 1, 0)
+
 # personen per kamer
 OfferDetails = merge(OfferDetails, Occupancy_table, by.x = "ROOM_OCCUPANCY", by.y = "ï..Room_types", sort = FALSE)
 
@@ -154,7 +183,7 @@ OfferDetails$STAR_RATING <- as.numeric(OfferDetails$STAR_RATING)
 OfferDetails$Persoon <- as.numeric(OfferDetails$Persoon)
 OfferDetails$max..volwassen <- as.numeric(OfferDetails$max..volwassen)
 OfferDetails$max..kinderen <- as.numeric(OfferDetails$max..kinderen)
-OfferDetails$DISCOUNT_RATE <- as.numeric(OfferDetails$DISCOUNT_RATE)
+#OfferDetails$DISCOUNT_RATE <- as.numeric(OfferDetails$DISCOUNT_RATE)
 OfferDetails$JANUARY <- as.numeric(OfferDetails$JANUARY)
 OfferDetails$FEBRUARY <- as.numeric(OfferDetails$FEBRUARY)
 OfferDetails$MARCH <- as.numeric(OfferDetails$MARCH)
@@ -171,7 +200,7 @@ OfferDetails$DECEMBER <- as.numeric(OfferDetails$DECEMBER)
 # missing values
 OfferDetails$PRICE[is.na(OfferDetails$PRICE)] <- 299
 OfferDetails$PRICE_ORIGINAL[is.na(OfferDetails$PRICE_ORIGINAL)] <- OfferDetails$PRICE[is.na(OfferDetails$PRICE_ORIGINAL)]
-OfferDetails$DISCOUNT_RATE[is.na(OfferDetails$DISCOUNT_RATE)] <- 0
+#OfferDetails$DISCOUNT_RATE[is.na(OfferDetails$DISCOUNT_RATE)] <- 0
 
 #taking log price for normal distribution
 OfferDetails$PRICE <- log(OfferDetails$PRICE)
@@ -182,12 +211,6 @@ OfferDetails$PRICE_PER_DAY <- (as.numeric(OfferDetails$PRICE) / as.numeric(Offer
 
 # discount rate
 OfferDetails$DISCOUNT_RATE <- (as.numeric(OfferDetails$PRICE_ORIGINAL) - as.numeric(OfferDetails$PRICE)) / as.numeric(OfferDetails$PRICE_ORIGINAL)
-
-# transforming USPs in to binary variables
-OfferDetails$BEACH <- as.numeric(str_detect(OfferDetails$USP1, 'strand')) + as.numeric(str_detect(OfferDetails$USP2, 'strand')) +  as.numeric(str_detect(OfferDetails$USP3, 'strand'))
-# ... 
-# ...
-# more to come
 
 # transform categorical variables to multiple binary variables
 ## Offer visualisation
@@ -244,11 +267,11 @@ OfferDetails$Person10 <- (OfferDetails$Persoon == cat_nr_persons[11,1]) * (Offer
 OfferDetails$Person11 <- (OfferDetails$Persoon == cat_nr_persons[12,1]) * (OfferDetails$max..volwassen == cat_nr_persons[12,2]) * (OfferDetails$max..kinderen == cat_nr_persons[12,3])
 OfferDetails$Person12 <- (OfferDetails$Persoon == cat_nr_persons[13,1]) * (OfferDetails$max..volwassen == cat_nr_persons[13,2]) * (OfferDetails$max..kinderen == cat_nr_persons[13,3])
 
-## remove Duration column
-OfferDetails <- subset(OfferDetails, select = -DURATION)
+## remove Duration column and PRICE_ORIGINAL and Persoon and max..volwassenen and max..kinderen columns
+OfferDetails <- subset(OfferDetails, select = -c(DURATION, PRICE_ORIGINAL, Persoon, max..volwassen, max..kinderen))
 
 # Standardize price/ discount price
-OfferDetails$PRICE -> (OfferDetails$PRICE)/ max(OfferDetails$PRICE)
+OfferDetails$PRICE <- (OfferDetails$PRICE)/ max(OfferDetails$PRICE)
 #OfferDetails$PRICE -> (OfferDetails$PRICE - min(OfferDetails$PRICE)) / (max(OfferDetails$PRICE)- min(OfferDetails$PRICE))
 
 # Review between 0-1
@@ -256,6 +279,9 @@ OfferDetails$REVIEW_RATING <- OfferDetails$REVIEW_RATING/ 10
 
 # Star between 0-1
 OfferDetails$STAR_RATING <- OfferDetails$STAR_RATING/ 5
+
+# Offer position between 0-1
+OfferDetails$OFFER_POSITION <- OfferDetails$OFFER_POSITION/14
 
 # order by offerid + mailid
 OfferDetails = OfferDetails[order(OfferDetails$OFFERID, OfferDetails$MAILID),]
