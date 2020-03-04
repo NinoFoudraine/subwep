@@ -19,6 +19,7 @@ library(ngram) #for preprocess(x) function to lose capitals and extra spaces
 
 OfferDetails = read.csv(file.choose(), header = T, sep = ';',stringsAsFactors = FALSE)
 Occupancy_table = read.csv(file.choose(), header = T, sep = ';',stringsAsFactors = FALSE)
+colnames(Occupancy_table)[1] <- 'Room_types' 
 
 ########################################################################
 ######################### Clean data ###################################
@@ -148,7 +149,7 @@ USP.centrum <- (str_detect(OfferDetails$USP1, paste(strings, collapse = "|"))) +
 OfferDetails$USP.centrum <- ifelse(USP.centrum> 0, 1, 0)
 
 # personen per kamer
-OfferDetails = merge(OfferDetails, Occupancy_table, by.x = "ROOM_OCCUPANCY", by.y = "ï..Room_types", sort = FALSE)
+OfferDetails = merge(OfferDetails, Occupancy_table, by.x = "ROOM_OCCUPANCY", by.y = "Room_types", sort = FALSE)
 
 # departure month binary vars
 OfferDetails$JANUARY <- as.numeric(str_detect(OfferDetails$DEPARTURE_DATE, 'Ja')) + as.numeric(str_detect(OfferDetails$DEPARTURE_DATE, 'ja'))
