@@ -1,18 +1,39 @@
 ########################################################################
-################## GET INTERESTING STATISTICS OF DATA ##################
+############## GET INTERESTING STATISTICS OF OBSERVATIONS ##############
 ########################################################################
 
+Observations = read.csv(file.choose(), header = T, sep = ';',stringsAsFactors = FALSE)
+
+#1 number of unique users, mails and offers
+length(unique(Observations$USERID))
+length(unique(Observations$MAILID))
+length(unique(Observations$OFFERID))
+
+#2 histogram distribution clickrate non-zero
+clickrate_per_user <- aggregate(Observations$CLICK, by = list(user = Observations$USERID), FUN = mean)
+obs_per_user <- aggregate(Observations$CLICK, by = list(user = Observations$USERID), FUN = length)
+nonzero_clickers <- clickrate_per_user$user[clickrate_per_user$x > 0]
+Observations_nonzero <- Observations[Observations$USERID %in% nonzero_clickers,]
+clickrate_per_user_nonzero <- aggregate(Observations_nonzero$CLICK, by = list(user = Observations_nonzero$USERID), FUN = mean)
+hist(clickrate_per_user_nonzero[,2], main = '', breaks=100, xlab = 'Clickrate (zero excluded)')
+
+########################################################################
+############ GET INTERESTING STATISTICS OF OFFERDETAILS ################
+########################################################################
+
+#Run first data_cleaning
+
 #1 number of unique mail IDs
-length(table(OfferDetails$MAILID))
+length(table(OfferDetails$MAILID)) #differs from observations -> some were never sent
 
 #2 number of unique offer IDs
-length(table(OfferDetails$OFFERID))
+length(table(OfferDetails$OFFERID)) #differs from observations -> some were never sent
 
-#3 offer visualisation ???
+#3 offer visualisation ??
 
 #4 Offer Position, min max avg 
 summary(OfferDetails$OFFER_POSITION)
-hist(OfferDetails$OFFER_POSITION, main = '',xlab = 'Offer position',breaks = c(1:14))
+hist(OfferDetails$OFFER_POSITION, main = '',xlab = 'Offer position',breaks = c(0:1))
 
 #5 Country Name, most common top ?5? 
 x <- table(OfferDetails$COUNTRY_NAME)
