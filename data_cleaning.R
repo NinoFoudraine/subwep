@@ -287,7 +287,8 @@ OfferDetails = OfferDetails[order(OfferDetails$OFFERID, OfferDetails$MAILID),]
 # Keep only numeric values
 OfferDetails <- dplyr::select_if(OfferDetails, is.numeric)
 
-
+# remove everything from environment except OfferDetails
+rm(list=setdiff(ls(), "OfferDetails"))
 
 
 
