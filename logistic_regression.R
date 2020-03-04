@@ -18,9 +18,9 @@ itReLS <- function(lambda_vector, train, validation, epsilon, userlist, AE_list_
   MAE_folds_boven_threshold <- rep(NA, length(length(train)))
   MAE_lambda_boven_threshold <- rep(NA, length(lambda_vector))
   # MAE_zero_folds <- rep(NA, length(train))
-  AE_clickrate_folds <- list()
-  MAE_clickrate_folds <- rep(NA, length(train))
-  MAE_clickrate_folds_boven_threshold <- rep(NA, length(train))
+  #AE_clickrate_folds <- list()
+  #MAE_clickrate_folds <- rep(NA, length(train))
+  #MAE_clickrate_folds_boven_threshold <- rep(NA, length(train))
   
   for (l in 1:length(lambda_vector)) {
     print(paste0('Lambda ', l))
@@ -61,7 +61,7 @@ itReLS <- function(lambda_vector, train, validation, epsilon, userlist, AE_list_
         # Parameter estimation with Iteratively Re-weighted Least Squares
         opt_parm <- RidgeRegr(parm, train_set, lambda, epsilon)
         
-        if (opt_parm == 'warning') {
+        if (any(opt_parm) == 'warning') {
           print(paste0('warning, diverges for user: ', j, ' - ', userlist[j]))
           next
         }
@@ -81,9 +81,9 @@ itReLS <- function(lambda_vector, train, validation, epsilon, userlist, AE_list_
       MAE_folds_boven_threshold[i] <- mean(abs(game_probs$CLICK - game_probs$click_prob))
       
       #AE_zero_folds[i] <- game_probs$CLICK
-      AE_clickrate_folds[[i]] <- c(game_probs$AE_clickrate, AE_clickrate_list_under_threshold[[i]])
-      MAE_clickrate_folds[i] <- mean(AE_clickrate_list_under_threshold[[i]])
-      MAE_clickrate_folds_boven_threshold[i] <- mean(game_probs$AE_clickrate)
+#      AE_clickrate_folds[[i]] <- c(game_probs$AE_clickrate, AE_clickrate_list_under_threshold[[i]])
+#      MAE_clickrate_folds[i] <- mean(AE_clickrate_list_under_threshold[[i]])
+#      MAE_clickrate_folds_boven_threshold[i] <- mean(game_probs$AE_clickrate)
       
       end_time <- Sys.time()
       print(end_time - start_time)
@@ -91,14 +91,14 @@ itReLS <- function(lambda_vector, train, validation, epsilon, userlist, AE_list_
     
     MAE_lambda[l] <- mean(MAE_folds)
     MAE_lambda_boven_threshold[l] <- mean(MAE_folds_boven_threshold)
-    MAE_clickrate <- mean(MAE_clickrate_folds)
-    MAE_clickrate_boven_threshold <- mean(MAE_clickrate_folds_boven_threshold)
+#    MAE_clickrate <- mean(MAE_clickrate_folds)
+#    MAE_clickrate_boven_threshold <- mean(MAE_clickrate_folds_boven_threshold)
   }
   # MAE_zero <- mean(MAE_zero_folds)
   # MAE_clickrate <- mean(MAE_clickrate_folds) 
   
   #return(list(MAE_table = rbind(MAE_lambda, MAE_zero, MAE_clickrate), probs = game_probs))  
-  return(list(MAE_table = rbind(MAE_lambda, MAE_clickrate, MAE_lambda_boven_threshold, MAE_clickrate_boven_threshold), probs = game_probs))
+  return(list(MAE_table = rbind(MAE_lambda, MAE_lambda_boven_threshold), probs = game_probs))
 }
 
 
@@ -164,17 +164,17 @@ Observations <- Observations[Observations$USERID %in% nonzero_clickers,]
 # STAP 2: Split data in train-test (met alle data)
 set.seed(1908)
 intrain <- createDataPartition(Observations$USERID, p = 0.8, list = F) 
-training <- Observations[intrain,] # train
-testing  <- Observations[-intrain,] # test
+training <- as.data.table(Observations[intrain,]) # train
+testing  <- as.data.table(Observations[-intrain,]) # test
 
 # STAP 3: Zet parameters
 n_folds <- 4
 lambda_vector <- c(0, 1, exp(1),  exp(4),  exp(7), exp(10), exp(13))
 epsilon <- 10^-4
 threshold_vector <- seq(0,1, by = 0.05)
-threshold_vector <- threshold_vector[18] #### voor Luuk
+threshold_vector <- threshold_vector[21] #### voor Luuk
 #threshold_vector <- threshold_vector[10:21] #### voor Nino
-total_results <- matrix(NA, 4*length(threshold_vector), length(lambda_vector)) # rows van matrix lengte van 4*j in forloop hieronder
+total_results <- matrix(NA, 2*length(threshold_vector), length(lambda_vector)) # rows van matrix lengte van 4*j in forloop hieronder
 
 #run for different thresholds (0.95, 0.90, 0.85, 0.80, 0.75, 0.70)
 for (j in 1:length(threshold_vector)) { 
@@ -187,7 +187,6 @@ for (j in 1:length(threshold_vector)) {
   train_boven_threshold <- list()
   validation_boven_threshold <- list()
   AE_under_threshold <- list()
-  AE_clickrate_under_threshold <- list()
 
   for (i in 1:n_folds){
     set.seed(2*i)
@@ -202,16 +201,14 @@ for (j in 1:length(threshold_vector)) {
     validation_boven_threshold[[i]] <- tussenstap_validation[tussenstap_validation$USERID %in% userlist_threshold,]
     validation_under_threshold <- tussenstap_validation[tussenstap_validation$USERID %ni% userlist_threshold,]
     AE_under_threshold[[i]] <- validation_under_threshold$CLICK
-    validation_under_threshold <- merge(validation_under_threshold,clickrate_training, by.x = 'USERID', by.y = 'user')
-    AE_clickrate_under_threshold[[i]] <- abs(validation_under_threshold$CLICK - validation_under_threshold$x)
   }
 
   # STAP 6: Run Algoritme
 
-results <- itReLS(lambda_vector = lambda_vector, train = train_boven_threshold, validation = validation_boven_threshold, epsilon = epsilon, userlist = userlist_threshold, AE_list_under_threshold = AE_under_threshold, clickrate = clickrate_per_user, AE_clickrate_list_under_threshold = AE_clickrate_under_threshold)
+results <- itReLS(lambda_vector = lambda_vector, train = train_boven_threshold, validation = validation_boven_threshold, epsilon = epsilon, userlist = userlist_threshold, AE_list_under_threshold = AE_under_threshold)#, clickrate = clickrate_per_user, AE_clickrate_list_under_threshold = AE_clickrate_under_threshold)
 
 print(results)
 
-total_results[(1+(j-1)*4):(4+(j-1)*4),1:length(lambda_vector)] <- results$MAE_table
+total_results[(1+(j-1)*2):(2+(j-1)*2),1:length(lambda_vector)] <- results$MAE_table
 
 }
