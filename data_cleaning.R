@@ -129,7 +129,7 @@ strings <- c("restaurant", "buffet", "ontbijt", "carte", "diner", "maaltijd", "b
 USP.eten <- (str_detect(OfferDetails$USP1, paste(strings, collapse = "|"))) + (str_detect(OfferDetails$USP2, paste(strings, collapse = "|"))) + (str_detect(OfferDetails$USP3, paste(strings, collapse = "|")))
 OfferDetails$USP.eten <- ifelse(USP.eten > 0, 1, 0)
 
-strings <- c("zwem", "glij", "aquapark", "aqualava", "aqualand", "pool", )
+strings <- c("zwem", "glij", "aquapark", "aqualava", "aqualand", "pool")
 USP.zwembad <- (str_detect(OfferDetails$USP1, paste(strings, collapse = "|"))) + (str_detect(OfferDetails$USP2, paste(strings, collapse = "|"))) + (str_detect(OfferDetails$USP3, paste(strings, collapse = "|")))
 OfferDetails$USP.zwembad <- ifelse(USP.zwembad > 0, 1, 0)
 
@@ -150,7 +150,7 @@ USP.centrum <- (str_detect(OfferDetails$USP1, paste(strings, collapse = "|"))) +
 OfferDetails$USP.centrum <- ifelse(USP.centrum> 0, 1, 0)
 
 # personen per kamer
-OfferDetails = merge(OfferDetails, Occupancy_table, by.x = "ROOM_OCCUPANCY", by.y = "�..Room_types", sort = FALSE)
+OfferDetails = merge(OfferDetails, Occupancy_table, by.x = "ROOM_OCCUPANCY", by.y = "ï..Room_types", sort = FALSE)
 
 # departure month binary vars
 OfferDetails$JANUARY <- as.numeric(str_detect(OfferDetails$DEPARTURE_DATE, 'Ja')) + as.numeric(str_detect(OfferDetails$DEPARTURE_DATE, 'ja'))
