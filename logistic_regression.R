@@ -210,6 +210,8 @@ for (j in 1:length(threshold_vector)) {
 
 results <- itReLS(lambda_vector = lambda_vector, train = train_boven_threshold, validation = validation_boven_threshold, epsilon = epsilon, userlist = userlist_threshold, AE_list_under_threshold = AE_under_threshold, clickrate = clickrate_per_user, AE_clickrate_list_under_threshold = AE_clickrate_under_threshold)
 
-total_results[(1+(j-1)*4):(4+(j-1)*4),1:7] <- results$MAE_table
+print(results)
+
+total_results[(1+(j-1)*4):(4+(j-1)*4),1:length(lambda_vector)] <- results$MAE_table
 
 }
