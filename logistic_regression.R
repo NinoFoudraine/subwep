@@ -156,10 +156,10 @@ testing  <- as.data.table(Observations[-intrain,]) # test
 
 # STAP 3: Zet parameters
 n_folds <- 5
-lambda_vector <- c(0, 1, exp(1),  exp(4),  exp(7), exp(10), exp(13))
+lambda_vector <- c(0.1, 1, exp(1),  exp(4),  exp(7), exp(10), exp(13))
 epsilon <- 10^-4
 threshold_vector <- seq(0,1, by = 0.05)
-threshold_vector <- threshold_vector[19] #### voor Luuk
+threshold_vector <- threshold_vector[2:5] #### voor Luuk
 #threshold_vector <- threshold_vector[10:21] #### voor Nino
 total_results <- matrix(NA, 2*length(threshold_vector), length(lambda_vector)) # rows van matrix lengte van 4*j in forloop hieronder
 
