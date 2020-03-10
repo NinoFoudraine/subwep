@@ -253,8 +253,8 @@ OfferDetails$VP <- ifelse(OfferDetails$MEAL_PLAN == 'VP',1,0)
 #making cat for number of persons/ max volw/ volw kind.
 cat_nr_persons <- unique(cbind(OfferDetails$Persoon,OfferDetails$max..volwassen,OfferDetails$max..kinderen))
 
-OfferDetails$Person1 <- (OfferDetails$Persoon == cat_nr_persons[2,1]) * (OfferDetails$max..volwassen == cat_nr_persons[2,2]) * (OfferDetails$max..kinderen == cat_nr_persons[2,3])
-OfferDetails$Person2 <- (OfferDetails$Persoon == cat_nr_persons[3,1]) * (OfferDetails$max..volwassen == cat_nr_persons[3,2]) * (OfferDetails$max..kinderen == cat_nr_persons[3,3])
+OfferDetails$Person1 <- (OfferDetails$Persoon == cat_nr_persons[1,1]) * (OfferDetails$max..volwassen == cat_nr_persons[1,2]) * (OfferDetails$max..kinderen == cat_nr_persons[1,3])
+OfferDetails$Person2 <- (OfferDetails$Persoon == cat_nr_persons[2,1]) * (OfferDetails$max..volwassen == cat_nr_persons[2,2]) * (OfferDetails$max..kinderen == cat_nr_persons[2,3])
 OfferDetails$Person3 <- (OfferDetails$Persoon == cat_nr_persons[4,1]) * (OfferDetails$max..volwassen == cat_nr_persons[4,2]) * (OfferDetails$max..kinderen == cat_nr_persons[4,3])
 OfferDetails$Person4 <- (OfferDetails$Persoon == cat_nr_persons[5,1]) * (OfferDetails$max..volwassen == cat_nr_persons[5,2]) * (OfferDetails$max..kinderen == cat_nr_persons[5,3])
 OfferDetails$Person5 <- (OfferDetails$Persoon == cat_nr_persons[6,1]) * (OfferDetails$max..volwassen == cat_nr_persons[6,2]) * (OfferDetails$max..kinderen == cat_nr_persons[6,3])
