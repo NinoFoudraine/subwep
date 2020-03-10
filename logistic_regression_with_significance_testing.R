@@ -17,6 +17,8 @@ itReLS <- function(lambda_vector, train, validation, epsilon, userlist, AE_list_
   MAE_lambda <- rep(NA, length(lambda_vector))
   MAE_folds_boven_threshold <- rep(NA, length(length(train)))
   MAE_lambda_boven_threshold <- rep(NA, length(lambda_vector))
+  significance <- rep(0, 59)
+  non_significant_models <- 0
   
   for (l in 1:length(lambda_vector)) {
     print(paste0('Lambda ', l))
@@ -52,7 +54,9 @@ itReLS <- function(lambda_vector, train, validation, epsilon, userlist, AE_list_
         ols <- lm(CLICK~., train_set)
         parm <- ols$coefficients
         parm[is.na(parm)] <- 0
-
+        
+        #print(j)
+        #print(userlist[j])
         # Parameter estimation with Iteratively Re-weighted Least Squares
         opt_parm <- RidgeRegr(parm, train_set, lambda, epsilon)
         
@@ -66,6 +70,24 @@ itReLS <- function(lambda_vector, train, validation, epsilon, userlist, AE_list_
         x <- test_set_complete
         x$click_prob <- prob
         total_probs[[j]] <- x
+        
+        ## Calculate significance with LR-test
+        RR_best <- RidgeLL(opt_parm,train_set,lambda)
+        chi_squared <- qchisq(0.9, df = 1)
+        t <- 0
+        for (k in 1:length(opt_parm)) {
+          test_parm <- opt_parm
+          test_parm[k] <- 0
+          LR = 2*(RR_best - RidgeLL(test_parm, train_set, lambda))
+          
+          if (LR > chi_squared) {
+            significance[k] <- significance[k] + 1
+            t <- t + 1
+          }
+        }
+        if (t == 0) {
+          non_significant_models <- non_significant_models + 1
+        }
       }
       game_probs <- dplyr::bind_rows(total_probs)
       
@@ -81,7 +103,10 @@ itReLS <- function(lambda_vector, train, validation, epsilon, userlist, AE_list_
     MAE_lambda[l] <- mean(MAE_folds, na.rm = TRUE)
     MAE_lambda_boven_threshold[l] <- mean(MAE_folds_boven_threshold, na.rm = TRUE)
   }
-  
+  significance <- as.data.frame(significance)
+  rownames(significance) <- rownames(as.data.frame(parm))
+  print(significance)
+  print(non_significant_models)
   return(list(MAE_table = rbind(MAE_lambda, MAE_lambda_boven_threshold), probs = game_probs))
 }
 
@@ -134,6 +159,17 @@ FitRidge <- function(parm,data){
     prob[i] <- z/(1+z)
   }
   return(prob)
+}
+
+# Ridge loglikelihood function
+RidgeLL <- function(parm,data, lambda){
+  f <- 0
+  x <- as.matrix(cbind(rep(1,dim(data)[1]),data[,-1]))
+  for (i in 1:dim(data)[1]){
+    z_i <- sum(parm*x[i,])
+    f <- f + x[i,1]*z_i - log(1 + exp(z_i))
+  }
+  return(f - 1/2 * lambda * norm(parm, '2')^2)
 }
 
 # STAP 0: Data inladen
@@ -199,8 +235,11 @@ total_results[(1+(j-1)*2):(2+(j-1)*2),1:length(lambda_vector)] <- results$MAE_ta
 
 
 #### Run last test set
+test_boven_threshold <- list()
+
 lambda = 1
 threshold = 0.5
+epsilon <- 10^-4
 clickrate_training <- training[, .(x = mean(CLICK)), by = USERID]
 userlist_threshold <- clickrate_training$USERID[clickrate_training$x > threshold]
 train_boven_threshold[[1]] <- training[training$USERID %in% userlist_threshold,]
@@ -208,7 +247,10 @@ test_boven_threshold[[1]] <- testing[testing$USERID %in% userlist_threshold,]
 test_under_threshold <- testing[testing$USERID %ni% userlist_threshold,]
 AE_under_threshold[[1]] <- test_under_threshold$CLICK
 
+
+# userlist_threshold <- userlist_threshold[6]
+
 final_results <- itReLS(lambda_vector = lambda, train = train_boven_threshold, validation = test_boven_threshold, epsilon = epsilon, userlist = userlist_threshold, AE_list_under_threshold = AE_under_threshold)
 final_results$MAE_table
-View(final_results$probs)
 aggregate(final_results$probs$click_prob, by = list(final_results$probs$CLICK), FUN = mean)
+View(final_results$probs)
