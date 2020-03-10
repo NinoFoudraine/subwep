@@ -213,7 +213,7 @@ OfferDetails$DISCOUNT_RATE <- (as.numeric(OfferDetails$PRICE_ORIGINAL) - as.nume
 
 # transform categorical variables to multiple binary variables
 ## Offer visualisation
-OfferDetails$FULL_WIDTH <- ifelse(str_detect(OfferDetails$OFFER_VISUALISATION,'full'),1,0)
+OfferDetails$HALF_WIDTH <- ifelse(str_detect(OfferDetails$OFFER_VISUALISATION,'full'),0,1)
 
 ## country name (alles = 0 betekent Griekenland)
 OfferDetails$BULGARIA <- ifelse(OfferDetails$COUNTRY_NAME == 'Bulgarije',1,0)
