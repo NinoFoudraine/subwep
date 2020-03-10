@@ -68,6 +68,24 @@ itReLS <- function(lambda_vector, train, validation, epsilon, userlist, AE_list_
         x <- test_set_complete
         x$click_prob <- prob
         total_probs[[j]] <- x
+        
+        # ## Calculate standard error and p-values
+        # print(paste0('user: ', j))
+        # if (j == 25) {
+        #   print(length(x$CLICK))
+        # print(summary(opt_parm[2]))
+        # resid = x$CLICK - x$click_prob
+        # s = sqrt(sum(resid^2)/(length(resid) - 2))
+        # print(paste0('s is: ',s))
+        # st_dev_x <- sqrt(var(train_set[,2]))
+        # print(paste0('standard error is ',st_dev_x))
+        # stand_err <- s/sqrt(length(resid)) * 1/st_dev_x
+        # z_score <- opt_parm[2]/stand_err
+        # p_value <- 2*pnorm(-abs(z_score))
+        # if (p_value < 0.05) {
+        #   print("significante variabele")
+        # }
+        # }
       }
       game_probs <- dplyr::bind_rows(total_probs)
       
@@ -143,9 +161,9 @@ Observations = read.csv(file.choose(), header = T, sep = ';',stringsAsFactors = 
 OfferDetails <- as.data.table(OfferDetails)
 
 # STAP 1: Delete zero clickers
-clickrate_per_user <- aggregate(Observations$CLICK, by = list(user = Observations$USERID), FUN = mean)
+#clickrate_per_user <- aggregate(Observations$CLICK, by = list(user = Observations$USERID), FUN = mean)
 obs_per_user <- aggregate(Observations$CLICK, by = list(user = Observations$USERID), FUN = length)
-nonzero_clickers <- clickrate_per_user$user[clickrate_per_user$x > 0 & obs_per_user$x > 2] ## en observaties meer dan 2 
+nonzero_clickers <- obs_per_user$user[obs_per_user$x > 2]#[clickrate_per_user$x > 0 & obs_per_user$x > 2] ## en observaties meer dan 2 
 Observations <- Observations[Observations$USERID %in% nonzero_clickers,]
 
 # STAP 2: Split data in train-test (met alle data)
@@ -156,11 +174,10 @@ testing  <- as.data.table(Observations[-intrain,]) # test
 
 # STAP 3: Zet parameters
 n_folds <- 5
-lambda_vector <- c(0.1, 1, exp(1),  exp(4),  exp(7), exp(10), exp(13))
+lambda_vector <- c(0.1, 1, exp(1),  exp(4),  exp(7))
 epsilon <- 10^-4
 threshold_vector <- seq(0,1, by = 0.05)
-threshold_vector <- threshold_vector[2:5] #### voor Luuk
-#threshold_vector <- threshold_vector[10:21] #### voor Nino
+threshold_vector <- 0.5 
 total_results <- matrix(NA, 2*length(threshold_vector), length(lambda_vector)) # rows van matrix lengte van 4*j in forloop hieronder
 
 #run for different thresholds (0.95, 0.90, 0.85, 0.80, 0.75, 0.70)
@@ -198,3 +215,20 @@ print(results$MAE_table)
 total_results[(1+(j-1)*2):(2+(j-1)*2),1:length(lambda_vector)] <- results$MAE_table
 
 }
+
+
+
+#### Run last test set
+lambda = 1
+threshold = 0.5
+clickrate_training <- training[, .(x = mean(CLICK)), by = USERID]
+userlist_threshold <- clickrate_training$USERID[clickrate_training$x > threshold]
+train_boven_threshold[[1]] <- training[training$USERID %in% userlist_threshold,]
+test_boven_threshold[[1]] <- testing[testing$USERID %in% userlist_threshold,]
+test_under_threshold <- testing[testing$USERID %ni% userlist_threshold,]
+AE_under_threshold[[1]] <- test_under_threshold$CLICK
+
+final_results <- itReLS(lambda_vector = lambda, train = train_boven_threshold, validation = test_boven_threshold, epsilon = epsilon, userlist = userlist_threshold, AE_list_under_threshold = AE_under_threshold)
+final_results$MAE_table
+View(final_results$probs)
+aggregate(final_results$probs$click_prob, by = list(final_results$probs$CLICK), FUN = mean)
