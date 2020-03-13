@@ -179,7 +179,7 @@ OfferDetails <- as.data.table(OfferDetails)
 # STAP 1: Delete zero clickers
 #clickrate_per_user <- aggregate(Observations$CLICK, by = list(user = Observations$USERID), FUN = mean)
 obs_per_user <- aggregate(Observations$CLICK, by = list(user = Observations$USERID), FUN = length)
-nonzero_clickers <- obs_per_user$user[obs_per_user$x > 2]#[clickrate_per_user$x > 0 & obs_per_user$x > 2] ## en observaties meer dan 2 
+nonzero_clickers <- obs_per_user$user[obs_per_user$x >= 2]#[clickrate_per_user$x > 0 & obs_per_user$x > 2] ## en observaties meer dan 2 
 Observations <- Observations[Observations$USERID %in% nonzero_clickers,]
 
 # STAP 2: Split data in train-test (met alle data)
@@ -188,56 +188,13 @@ intrain <- createDataPartition(Observations$USERID, p = 0.8, list = F)
 training <- as.data.table(Observations[intrain,]) # train
 testing  <- as.data.table(Observations[-intrain,]) # test
 
-# STAP 3: Zet parameters
-n_folds <- 5
-lambda_vector <- c(0.1, 1, exp(1),  exp(4),  exp(7))
-epsilon <- 10^-4
-threshold_vector <- seq(0,1, by = 0.05)
-threshold_vector <- 0.5 
-total_results <- matrix(NA, 2*length(threshold_vector), length(lambda_vector)) # rows van matrix lengte van 4*j in forloop hieronder
-
-#run for different thresholds (0.95, 0.90, 0.85, 0.80, 0.75, 0.70)
-for (j in 1:length(threshold_vector)) { 
-
-  threshold <- threshold_vector[j]
-
-  # STAP 4: Split in Repeated Holdout folds
-  # 
-  
-  train_boven_threshold <- list()
-  validation_boven_threshold <- list()
-  AE_under_threshold <- list()
-
-  for (i in 1:n_folds){
-    set.seed(2*i)
-    intrain_fold <- training[,sample(.N, floor(.N*0.8))]
-    tussenstap_train <- training[intrain_fold,]
-    tussenstap_validation <- training[-intrain_fold,]
-    clickrate_training <- tussenstap_train[, .(x = mean(CLICK)), by = USERID]
-    userlist_threshold <- clickrate_training$USERID[clickrate_training$x > threshold]
-    
-    # STAP 5: Haal 0 schattingen eruit
-    train_boven_threshold[[i]] <- tussenstap_train[tussenstap_train$USERID %in% userlist_threshold,]
-    validation_boven_threshold[[i]] <- tussenstap_validation[tussenstap_validation$USERID %in% userlist_threshold,]
-    validation_under_threshold <- tussenstap_validation[tussenstap_validation$USERID %ni% userlist_threshold,]
-    AE_under_threshold[[i]] <- validation_under_threshold$CLICK
-  }
-
-  # STAP 6: Run Algoritme
-results <- itReLS(lambda_vector = lambda_vector, train = train_boven_threshold, validation = validation_boven_threshold, epsilon = epsilon, userlist = userlist_threshold, AE_list_under_threshold = AE_under_threshold)#, clickrate = clickrate_per_user, AE_clickrate_list_under_threshold = AE_clickrate_under_threshold)
-
-print(results$MAE_table)
-
-total_results[(1+(j-1)*2):(2+(j-1)*2),1:length(lambda_vector)] <- results$MAE_table
-
-}
-
-
-
 #### Run last test set
 test_boven_threshold <- list()
+train_boven_threshold <- list()
+validation_boven_threshold <- list()
+AE_under_threshold <- list()
 
-lambda = 1
+lambda = 0.1
 threshold = 0.5
 epsilon <- 10^-4
 clickrate_training <- training[, .(x = mean(CLICK)), by = USERID]
@@ -246,9 +203,6 @@ train_boven_threshold[[1]] <- training[training$USERID %in% userlist_threshold,]
 test_boven_threshold[[1]] <- testing[testing$USERID %in% userlist_threshold,]
 test_under_threshold <- testing[testing$USERID %ni% userlist_threshold,]
 AE_under_threshold[[1]] <- test_under_threshold$CLICK
-
-
-# userlist_threshold <- userlist_threshold[6]
 
 final_results <- itReLS(lambda_vector = lambda, train = train_boven_threshold, validation = test_boven_threshold, epsilon = epsilon, userlist = userlist_threshold, AE_list_under_threshold = AE_under_threshold)
 final_results$MAE_table
