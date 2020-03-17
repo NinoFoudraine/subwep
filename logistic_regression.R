@@ -11,6 +11,16 @@ library(data.table)
 
 '%ni%' <- Negate('%in%')
 
+# function for computing logistic regression for all lambdas and folds
+# input:  lambda_vector             -   vector of lambdas
+#         train                     -   list of training folds
+#         validation                -   list of validation folds
+#         epsilon                   -   convergence parameter (set at 10^-4)
+#         userlist                  -   vector of users that need to be trained (i.e., above the threshold)
+#         AE_list_under_threshold   -   list with error vectors per fold
+# output: MAE_table                 -   table representing the MAE on total and MAE on trained users only, per lambda and per threshold
+#         probs                     -   vector of probs of the last fold (for example purposes)
+#         norms                     -   table representing the norm of the betas excluding intercept per lambda and per threshold
 itReLS <- function(lambda_vector, train, validation, epsilon, userlist, AE_list_under_threshold){
   AE_folds <- list()
   MAE_folds <- rep(NA, length(train))
@@ -37,22 +47,21 @@ itReLS <- function(lambda_vector, train, validation, epsilon, userlist, AE_list_
       for (j in 1:length(userlist)){
         # training set
         train_set <- train_kfold[USERID == userlist[j]]
-        train_set <- train_set[OfferDetails, on = c(OFFERID = 'OFFERID', MAILID = 'MAILID'), nomatch = 0]
+        train_set <- train_set[OfferDetails, on = c(OFFERID = 'OFFERID', MAILID = 'MAILID'), nomatch = 0] # merge training data on content
         train_set <- train_set[,-c("OFFERID", "MAILID", "USERID")] 
-        
         
         # test set
         test_set_complete <- validation_kfold[USERID == userlist[j]]
-        test_set <- test_set_complete[OfferDetails, on = c(OFFERID = 'OFFERID', MAILID = 'MAILID'), nomatch = 0]
+        test_set <- test_set_complete[OfferDetails, on = c(OFFERID = 'OFFERID', MAILID = 'MAILID'), nomatch = 0] # merge testing data on content
         test_set <- test_set[,-c("OFFERID", "MAILID", "USERID")]
         
-        if (nrow(test_set) == 0 || nrow(train_set)== 0) {
+        if (nrow(test_set) == 0 || nrow(train_set)== 0) { # if  nothing is in the train or test set, nothing should be fitted (for computation time purposes)
           # print('no forecasts needed')
           # print(j)
           next
         }
         
-        # create parameters
+        # create initial parameters -> OLS estimates
         ols <- lm(CLICK~., train_set)
         parm <- ols$coefficients
         parm[is.na(parm)] <- 0
@@ -60,11 +69,6 @@ itReLS <- function(lambda_vector, train, validation, epsilon, userlist, AE_list_
         # Parameter estimation with Iteratively Re-weighted Least Squares
         opt_parm <- RidgeRegr(parm, train_set, lambda, epsilon)
         norm_betas[j] <- norm(opt_parm[-1], '2')
-        
-        if (any(opt_parm) == 'warning') {
-          print(paste0('warning, diverges for user: ', j, ' - ', userlist[j]))
-          next
-        }
 
         # Fit test observations
         prob <- FitRidge(opt_parm, test_set)
@@ -75,15 +79,16 @@ itReLS <- function(lambda_vector, train, validation, epsilon, userlist, AE_list_
       game_probs <- dplyr::bind_rows(total_probs)
       norm_betas_folds[i] <- mean(norm_betas, na.rm = TRUE)
       
-      AE_folds[[i]] <- c(abs(game_probs$CLICK - game_probs$click_prob),AE_list_under_threshold[[i]])
+      AE_folds[[i]] <- c(abs(game_probs$CLICK - game_probs$click_prob),AE_list_under_threshold[[i]]) # combine the errors of the trained users and the users under threshold
       MAE_folds[i] <- mean(AE_folds[[i]])
-      MAE_folds_boven_threshold[i] <- mean(abs(game_probs$CLICK - game_probs$click_prob))
+      MAE_folds_boven_threshold[i] <- mean(abs(game_probs$CLICK - game_probs$click_prob)) # error of only trained users
       
       end_time <- Sys.time()
       print(end_time - start_time)
     }
     
-    MAE_lambda[l] <- mean(MAE_folds, na.rm = TRUE)
+    # compute mean over all folds
+    MAE_lambda[l] <- mean(MAE_folds, na.rm = TRUE) 
     MAE_lambda_boven_threshold[l] <- mean(MAE_folds_boven_threshold, na.rm = TRUE)
     norm_betas_lambda[l] <- mean(norm_betas_folds)
   }
@@ -91,29 +96,32 @@ itReLS <- function(lambda_vector, train, validation, epsilon, userlist, AE_list_
   return(list(MAE_table = rbind(MAE_lambda, MAE_lambda_boven_threshold), probs = game_probs, norms = norm_betas_lambda))
 }
 
-
+# function for Newton-Raphson method to find optimal solution
+# input:  parm                      -   initial parameters
+#         data                      -   input data
+#         lambda                    -   penalty parameter
+#         epsilon                   -   convergence parameter (set at 10^-4)
+# output: beta_k1                   -   parameters for optimal solution
 RidgeRegr <- function(parm, data, lambda, epsilon){
   n <- dim(data)[1]
   beta_k <- rep(Inf, length(parm))
   beta_k1 <- parm
   gradient <- Inf
-  x <- as.matrix(cbind(intercept = rep(1,n),data[,-1]))
-  y <- as.matrix(data[,1])
+  x <- as.matrix(cbind(intercept = rep(1,n),data[,-1])) # create intercept on the first column
+  y <- as.matrix(data[,1])  # first column being the CLICK variable
   j = 0
   z <- rep(0,n)
   while (sum(gradient)^2 > epsilon & j < 40) {
     beta_k = beta_k1
     for (i in 1:n) {
       b <- exp(sum(x[i,]*beta_k))
-      if (is.na(b)) {
-        return('warning')
-      }
-      if (b == Inf){
+      if (b == Inf){ # sometimes b gets too large that it is set to Inf, then z = Inf/(Inf+1), which is equal to 1 in this case
         z[i] <- 1 
         next
       }
       z[i] <- b/(1 + b)
     }
+    # compute gradient and hessian based on the algorithm
     W <- z*(1-z)
     q <- diag(lambda, length(parm))
     q[1,1] <- 0
@@ -121,20 +129,20 @@ RidgeRegr <- function(parm, data, lambda, epsilon){
     r <- lambda * beta_k
     r[1] <- 0
     gradient <- t(x) %*% (y - z) - r
-    if (any(is.na(gradient))) {
-      return('warning')
-    }
+    # compute next iteration
     beta_k1 <- beta_k + ginv(Hessian) %*% gradient
     j = j+1
   }
-  #print(j)
   return(beta_k1)
 }
 
-# Fit Ridge function 
+# function to fit the predictions
+# input:  parm                      -   parameters to fit the model with
+#         data                      -   input data
+# output: prob                      -   vector of fits based on the data and parameters
 FitRidge <- function(parm,data){
   prob <- rep(NA,dim(data)[1])
-  x <- as.matrix(cbind(rep(1,dim(data)[1]),data[,-1]))
+  x <- as.matrix(cbind(rep(1,dim(data)[1]),data[,-1])) # create intercept on th first column
   for (i in 1:dim(data)[1]) {
     z <- exp(sum(parm*x[i,]))
     prob[i] <- z/(1+z)
@@ -142,29 +150,27 @@ FitRidge <- function(parm,data){
   return(prob)
 }
 
-# STAP 0: Data inladen
+# STAP 0: read in the data (Observations_report.csv)
 Observations = read.csv(file.choose(), header = T, sep = ';',stringsAsFactors = FALSE)
-OfferDetails <- as.data.table(OfferDetails)
+OfferDetails <- as.data.table(OfferDetails) # compute OfferDetails matrix by running the 'data_cleaning.R' script
 
-# STAP 1: Delete zero clickers
-#clickrate_per_user <- aggregate(Observations$CLICK, by = list(user = Observations$USERID), FUN = mean)
+# STAP 1: Remove clickers with less than 3 observations (these users are irrelevant since the splitting of the data causes to never train a model or predict probabilities for these users)
 obs_per_user <- aggregate(Observations$CLICK, by = list(user = Observations$USERID), FUN = length)
-nonzero_clickers <- obs_per_user$user[obs_per_user$x > 2]#[clickrate_per_user$x > 0 & obs_per_user$x > 2] ## en observaties meer dan 2 
+nonzero_clickers <- obs_per_user$user[obs_per_user$x > 2]
 Observations <- Observations[Observations$USERID %in% nonzero_clickers,]
 
-# STAP 2: Split data in train-test (met alle data)
+# STAP 2: Split data in train-test (all data)
 set.seed(1908)
 intrain <- createDataPartition(Observations$USERID, p = 0.8, list = F) 
 training <- as.data.table(Observations[intrain,]) # train
 testing  <- as.data.table(Observations[-intrain,]) # test
 
-# STAP 3: Zet parameters
+# STAP 3: Set parameters
 n_folds <- 5
 lambda_vector <- c(0.1, 1, exp(1),  exp(4),  exp(7))
 epsilon <- 10^-4
-threshold_vector <- seq(0.5,0.95, by = 0.05)
-threshold_vector <- c(0.9,0.95) 
-total_results <- matrix(NA, 2*length(threshold_vector), length(lambda_vector)) # rows van matrix lengte van 4*j in forloop hieronder
+threshold_vector <- seq(0,0.95, by = 0.05)
+total_results <- matrix(NA, 2*length(threshold_vector), length(lambda_vector))
 norm_results <- matrix(NA, length(threshold_vector), length(lambda_vector))
 
 MAE_nulschatting_boven_threshold <- rep(NA, length(threshold_vector))
@@ -172,31 +178,33 @@ MAE_nulschatting_boven_threshold <- rep(NA, length(threshold_vector))
 for (j in 1:length(threshold_vector)) { 
 
   threshold <- threshold_vector[j]
-
-  # STAP 4: Split in Repeated Holdout folds
-  # 
   
   train_boven_threshold <- list()
   validation_boven_threshold <- list()
   AE_under_threshold <- list()
   
   for (i in 1:n_folds){
+    # compute repeated holdout
     set.seed(2*i)
     intrain_fold <- training[,sample(.N, floor(.N*0.8))]
     tussenstap_train <- training[intrain_fold,]
     tussenstap_validation <- training[-intrain_fold,]
+    # compute clickrate per user in the fold
     clickrate_training <- tussenstap_train[, .(x = mean(CLICK)), by = USERID]
+    # get userlist for only trained users
     userlist_threshold <- clickrate_training$USERID[clickrate_training$x > threshold]
     
-    # STAP 5: Haal 0 schattingen eruit
+    # filter data for only trained users
     train_boven_threshold[[i]] <- tussenstap_train[tussenstap_train$USERID %in% userlist_threshold,]
     validation_boven_threshold[[i]] <- tussenstap_validation[tussenstap_validation$USERID %in% userlist_threshold,]
+    # filter data for users under threshold
     validation_under_threshold <- tussenstap_validation[tussenstap_validation$USERID %ni% userlist_threshold,]
     AE_under_threshold[[i]] <- validation_under_threshold$CLICK
   }
+  # compute base-model for only trained users
   validationset <- dplyr::bind_rows(validation_boven_threshold)
   MAE_nulschatting_boven_threshold[j] <- mean(validationset$CLICK)
-  # STAP 6: Run Algoritme
+  # run algorithm
 results <- itReLS(lambda_vector = lambda_vector, train = train_boven_threshold, validation = validation_boven_threshold, epsilon = epsilon, userlist = userlist_threshold, AE_list_under_threshold = AE_under_threshold)#, clickrate = clickrate_per_user, AE_clickrate_list_under_threshold = AE_clickrate_under_threshold)
 
 print(results$MAE_table)
@@ -205,20 +213,3 @@ print(results$norms)
 total_results[(1+(j-1)*2):(2+(j-1)*2),1:length(lambda_vector)] <- results$MAE_table
 norm_results[j,] <- results$norms
 }
-
-
-
-#### Run last test set
-lambda = 1
-threshold = 0.5
-clickrate_training <- training[, .(x = mean(CLICK)), by = USERID]
-userlist_threshold <- clickrate_training$USERID[clickrate_training$x > threshold]
-train_boven_threshold[[1]] <- training[training$USERID %in% userlist_threshold,]
-test_boven_threshold[[1]] <- testing[testing$USERID %in% userlist_threshold,]
-test_under_threshold <- testing[testing$USERID %ni% userlist_threshold,]
-AE_under_threshold[[1]] <- test_under_threshold$CLICK
-
-final_results <- itReLS(lambda_vector = lambda, train = train_boven_threshold, validation = test_boven_threshold, epsilon = epsilon, userlist = userlist_threshold, AE_list_under_threshold = AE_under_threshold)
-final_results$MAE_table
-View(final_results$probs)
-aggregate(final_results$probs$click_prob, by = list(final_results$probs$CLICK), FUN = mean)

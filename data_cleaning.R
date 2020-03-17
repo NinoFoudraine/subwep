@@ -68,7 +68,7 @@ OfferDetails$COUNTRY_NAME[OfferDetails$COUNTRY_NAME == 'Egypte '] = 'Egypte'
 OfferDetails$CITY_NAME[OfferDetails$COUNTRY_NAME == 'Roda'] = 'Roda'
 OfferDetails$COUNTRY_NAME[OfferDetails$COUNTRY_NAME == 'Roda'] = 'Griekenland'
 
-# change meal plans
+# change meal plans into six categories
 OfferDetails$MEAL_PLAN = str_replace(OfferDetails$MEAL_PLAN,'ultra all inclusive', "UAI")
 OfferDetails$MEAL_PLAN = str_replace(OfferDetails$MEAL_PLAN,'logies met ontbijt', "LO")
 OfferDetails$MEAL_PLAN = str_replace(OfferDetails$MEAL_PLAN,'logies en ontbijt', "LO")
@@ -82,7 +82,7 @@ OfferDetails$MEAL_PLAN = str_replace(OfferDetails$MEAL_PLAN,'volpension', "VP")
 OfferDetails$MEAL_PLAN = str_replace(OfferDetails$MEAL_PLAN,'logies', "LG")
 OfferDetails$MEAL_PLAN = str_replace(OfferDetails$MEAL_PLAN,'halfpension', "HP")
 
-# dubbele spelingen van zelfde gebieden universeren
+# universe spelling
 ## Tunesia and Tunesie
 OfferDetails$COUNTRY_NAME[str_detect(OfferDetails$COUNTRY_NAME,'Tunes') == TRUE] <- 'Tunesie'
 ## costa de Almeria
@@ -97,9 +97,9 @@ OfferDetails$REGION_NAME[str_detect(OfferDetails$REGION_NAME, 'Epirus') == TRUE]
 OfferDetails$REGION_NAME[str_detect(OfferDetails$REGION_NAME, 'Kreta') == TRUE] <- 'Kreta'
 ## Peloponnesos correctly spelled
 OfferDetails$REGION_NAME[str_detect(OfferDetails$REGION_NAME, 'Pel') == TRUE] <- 'Peloponnesos'
-## Turkish/Turkse riviera spelling samenvoegen
+## Put Turkish/Turkse riviera together
 OfferDetails$REGION_NAME[str_detect(OfferDetails$REGION_NAME, 'Turk') == TRUE] <- 'Turkse Riviera'
-## Zwarte zee gebied generaliseren -> Zwarte zee, Zwarte zeekust en Zwarte zeekust Varna samenvoegen
+## Generalize Zwarte zee gebied -> merge Zwarte zee, Zwarte zeekust en Zwarte zeekust Varna
 OfferDetails$REGION_NAME[str_detect(OfferDetails$REGION_NAME, 'Zwart') == TRUE] <- "Zwarte zee"
 ## (Noord/Zuid) Egeische zee
 OfferDetails$REGION_NAME[str_detect(OfferDetails$REGION_NAME, 'Ege') == TRUE & str_detect(OfferDetails$REGION_NAME, 'Zuid') == FALSE & str_detect(OfferDetails$REGION_NAME, 'Noord') == FALSE] <- 'Egeische kust'
@@ -118,37 +118,44 @@ testfreq <- table(help.usp2)
 usp <- cbind(names(testfreq),as.integer(testfreq))
 d <- as.data.frame(usp, stringsAsFactors=FALSE)
 d[, 2] <- as.numeric(d[, 2]) # coerce the relevant column to numeric
-usp2 <- d[order(d[, 2], decreasing = TRUE), ]
+usp2 <- d[order(d[, 2], decreasing = TRUE), ] # check for most common words in all USPs
 
+# check for relevant words in USPs for 'beach' variable
 strings <- c("strand", "baai", "zee", "beach", "playa", "haven", "pier", "water", "snorkel")
 USP.strand <- (str_detect(OfferDetails$USP1, paste(strings, collapse = "|"))) + (str_detect(OfferDetails$USP2, paste(strings, collapse = "|"))) + (str_detect(OfferDetails$USP3, paste(strings, collapse = "|")))
 OfferDetails$USP.strand <- ifelse(USP.strand > 0, 1, 0)
 
+# check for relevant words in USPs for 'food' variable
 strings <- c("restaurant", "buffet", "ontbijt", "carte", "diner", "maaltijd", "bakker", "snack", "cook")
 USP.eten <- (str_detect(OfferDetails$USP1, paste(strings, collapse = "|"))) + (str_detect(OfferDetails$USP2, paste(strings, collapse = "|"))) + (str_detect(OfferDetails$USP3, paste(strings, collapse = "|")))
 OfferDetails$USP.eten <- ifelse(USP.eten > 0, 1, 0)
 
+# check for relevant words in USPs for 'swimming pool' variable
 strings <- c("zwem", "glij", "aquapark", "aqualava", "aqualand", "pool")
 USP.zwembad <- (str_detect(OfferDetails$USP1, paste(strings, collapse = "|"))) + (str_detect(OfferDetails$USP2, paste(strings, collapse = "|"))) + (str_detect(OfferDetails$USP3, paste(strings, collapse = "|")))
 OfferDetails$USP.zwembad <- ifelse(USP.zwembad > 0, 1, 0)
 
+# check for relevant words in USPs for 'adults' variable
 strings <- c("adults", "volwassen", "rust", "stellen", "\\+")
 USP.volwassenen <- (str_detect(OfferDetails$USP1, paste(strings, collapse = "|"))) + (str_detect(OfferDetails$USP2, paste(strings, collapse = "|"))) + (str_detect(OfferDetails$USP3, paste(strings, collapse = "|")))
 OfferDetails$USP.volwassenen <- ifelse(USP.volwassenen > 0, 1, 0)
 
+# check for relevant words in USPs for 'family' variable
 strings <- c("familie", "speel", "gezin", "entertain", "jong", "junior", "kind", "kids", "miniclub", "animatie")
 USP.familie <- (str_detect(OfferDetails$USP1, paste(strings, collapse = "|"))) + (str_detect(OfferDetails$USP2, paste(strings, collapse = "|"))) + (str_detect(OfferDetails$USP3, paste(strings, collapse = "|")))
 OfferDetails$USP.familie <- ifelse(USP.familie > 0, 1, 0)
 
+# check for relevant words in USPs for 'Dutch speaking' variable
 strings <- c("nederland")
 USP.nederlandstalig <- (str_detect(OfferDetails$USP1, paste(strings, collapse = "|"))) + (str_detect(OfferDetails$USP2, paste(strings, collapse = "|"))) + (str_detect(OfferDetails$USP3, paste(strings, collapse = "|")))
 OfferDetails$USP.nederlandstalig <- ifelse(USP.nederlandstalig > 0, 1, 0)
 
+# check for relevant words in USPs for 'central' variable
 strings <- c("centrum", "cenraal", "centrale", "winkel")
 USP.centrum <- (str_detect(OfferDetails$USP1, paste(strings, collapse = "|"))) + (str_detect(OfferDetails$USP2, paste(strings, collapse = "|"))) + (str_detect(OfferDetails$USP3, paste(strings, collapse = "|")))
 OfferDetails$USP.centrum <- ifelse(USP.centrum> 0, 1, 0)
 
-# personen per kamer
+# persones per room
 OfferDetails = merge(OfferDetails, Occupancy_table, by.x = "ROOM_OCCUPANCY", by.y = "Room_types", sort = FALSE)
 
 # departure month binary vars
@@ -196,12 +203,12 @@ OfferDetails$OCTOBER <- as.numeric(OfferDetails$OCTOBER)
 OfferDetails$NOVEMBER <- as.numeric(OfferDetails$NOVEMBER)
 OfferDetails$DECEMBER <- as.numeric(OfferDetails$DECEMBER)
 
-# missing values
-OfferDetails$PRICE[is.na(OfferDetails$PRICE)] <- 299
-OfferDetails$PRICE_ORIGINAL[is.na(OfferDetails$PRICE_ORIGINAL)] <- OfferDetails$PRICE[is.na(OfferDetails$PRICE_ORIGINAL)]
+# missing values for price and original price
+OfferDetails$PRICE[is.na(OfferDetails$PRICE)] <- 299 # only one missing, checked manually
+OfferDetails$PRICE_ORIGINAL[is.na(OfferDetails$PRICE_ORIGINAL)] <- OfferDetails$PRICE[is.na(OfferDetails$PRICE_ORIGINAL)] # set all missing original price to price
 #OfferDetails$DISCOUNT_RATE[is.na(OfferDetails$DISCOUNT_RATE)] <- 0
 
-#taking log price for normal distribution
+#taking log price and log original price for normal distribution
 OfferDetails$PRICE <- log(OfferDetails$PRICE)
 OfferDetails$PRICE_ORIGINAL <- log(OfferDetails$PRICE_ORIGINAL)
 
@@ -215,7 +222,7 @@ OfferDetails$DISCOUNT_RATE <- (as.numeric(OfferDetails$PRICE_ORIGINAL) - as.nume
 ## Offer visualisation
 OfferDetails$HALF_WIDTH <- ifelse(str_detect(OfferDetails$OFFER_VISUALISATION,'full'),0,1)
 
-## country name (alles = 0 betekent Griekenland)
+## country name (all variables equal to 0 represents Greece)
 OfferDetails$BULGARIA <- ifelse(OfferDetails$COUNTRY_NAME == 'Bulgarije',1,0)
 OfferDetails$EGYPT <- ifelse(OfferDetails$COUNTRY_NAME == 'Egypte',1,0)
 OfferDetails$CYPRUS <- ifelse(OfferDetails$COUNTRY_NAME == 'Cyprus',1,0)
@@ -232,27 +239,17 @@ OfferDetails$MOROCCO <- ifelse(OfferDetails$COUNTRY_NAME == 'Marokko',1,0)
 OfferDetails$TUNESIA <- ifelse(OfferDetails$COUNTRY_NAME == 'Tunesie',1,0)
 OfferDetails$ISRAEL <- ifelse(OfferDetails$COUNTRY_NAME == 'Israël',1,0)
 
-## Meal Plan (alles = 0 betekent AI (all inclusive))
+## Meal Plan (all variables equal to 0 represents AI (all inclusive))
 OfferDetails$LG <- ifelse(OfferDetails$MEAL_PLAN == 'LG',1,0)
 OfferDetails$LO <- ifelse(OfferDetails$MEAL_PLAN == 'LO',1,0)
 OfferDetails$UAI <- ifelse(OfferDetails$MEAL_PLAN == 'UAI',1,0)
 OfferDetails$HP <- ifelse(OfferDetails$MEAL_PLAN == 'HP',1,0)
 OfferDetails$VP <- ifelse(OfferDetails$MEAL_PLAN == 'VP',1,0)
 
-## Duration (alles = 0 betekent 8 dagen)
-#OfferDetails$FOUR_DAYS <- ifelse(OfferDetails$DURATION == 4,1,0)
-#OfferDetails$FIVE_DAYS <- ifelse(OfferDetails$DURATION == 5,1,0)
-#OfferDetails$SIX_DAYS <- ifelse(OfferDetails$DURATION == 6,1,0)
-#OfferDetails$SEVEN_DAYS <- ifelse(OfferDetails$DURATION == 7,1,0)
-#OfferDetails$NINE_DAYS <- ifelse(OfferDetails$DURATION == 9,1,0)
-#OfferDetails$TEN_DAYS <- ifelse(OfferDetails$DURATION == 10,1,0)
-#OfferDetails$ELEVEN_DAYS <- ifelse(OfferDetails$DURATION == 11,1,0)
-#OfferDetails$TWELVE_DAYS <- ifelse(OfferDetails$DURATION == 12,1,0)
-#OfferDetails$THIRTEEN_DAYS <- ifelse(OfferDetails$DURATION == 13,1,0)
-
-#making cat for number of persons/ max volw/ volw kind.
+#making categories for number of persons/ max volw/ max kind.
 cat_nr_persons <- unique(cbind(OfferDetails$Persoon,OfferDetails$max..volwassen,OfferDetails$max..kinderen))
 
+# create binary variables for the different categories
 OfferDetails$Person1 <- (OfferDetails$Persoon == cat_nr_persons[1,1]) * (OfferDetails$max..volwassen == cat_nr_persons[1,2]) * (OfferDetails$max..kinderen == cat_nr_persons[1,3])
 OfferDetails$Person2 <- (OfferDetails$Persoon == cat_nr_persons[2,1]) * (OfferDetails$max..volwassen == cat_nr_persons[2,2]) * (OfferDetails$max..kinderen == cat_nr_persons[2,3])
 OfferDetails$Person3 <- (OfferDetails$Persoon == cat_nr_persons[4,1]) * (OfferDetails$max..volwassen == cat_nr_persons[4,2]) * (OfferDetails$max..kinderen == cat_nr_persons[4,3])
@@ -271,7 +268,6 @@ OfferDetails <- subset(OfferDetails, select = -c(DURATION, PRICE_ORIGINAL, Perso
 
 # Standardize price/ discount price
 OfferDetails$PRICE <- (OfferDetails$PRICE)/ max(OfferDetails$PRICE)
-#OfferDetails$PRICE -> (OfferDetails$PRICE - min(OfferDetails$PRICE)) / (max(OfferDetails$PRICE)- min(OfferDetails$PRICE))
 
 # Review between 0-1
 OfferDetails$REVIEW_RATING <- OfferDetails$REVIEW_RATING/ 10
